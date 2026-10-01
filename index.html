@@ -1,4 +1,4 @@
-d<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -38,10 +38,16 @@ d<!DOCTYPE html>
   #legend .eye { display: none; margin-left: auto; width: 16px; height: 16px; }
   #legend .offscale .eye { display: inline-block; }
   #legend .offscale .grp { color: #d00000; }
-  .pophead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 20px 4px 0; margin-bottom: 4px; border-bottom: 1px solid #ddd; font-weight: 600; }
+  .pophead { font-size: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 20px 4px 0; margin-bottom: 4px; border-bottom: 1px solid #ddd; font-weight: 600; }
   .pophead .nav { padding: 1px 7px; font-size: 11px; }
   .pophead .nav:disabled { opacity: .35; cursor: default; }
-  .maplibregl-popup-content table th { background: #eee; }
+  .maplibregl-popup-content { font-size: 12px; line-height: 1.35; padding: 8px 10px; }
+  .maplibregl-popup-content table { width: 100%; }
+  .maplibregl-popup-content th, .maplibregl-popup-content td { position: static; border: none; border-bottom: 1px solid #eee; padding: 2px 0; white-space: normal; max-width: none; overflow: visible; vertical-align: top; word-break: break-word; }
+  .maplibregl-popup-content th { background: none; color: #666; font-weight: 600; padding-right: 10px; white-space: nowrap; width: 1%; }
+  .maplibregl-popup-content a { color: #0b6bcb; }
+  #legend .op { font-size: 11px; margin-left: 18px; color: #555; }
+  #legend .op input[type=range] { width: 90px; }
 </style>
 </head>
 <body>
@@ -66,7 +72,17 @@ d<!DOCTYPE html>
 const CONFIG = {
   styleUrl: 'style.json',
   queryLayers: null,                     // null = auto-detect every layer that uses a vector source in your style; or list ids, e.g. ['my-points']
-  layerZooms: { Boreholes: [13, 14],  Site_Reports: [13, 14]},                        // optional tile-zoom range per layer, e.g. { Boreholes: [10, 14] } (the export script prints this line)
+  // Overlays (ArcGIS MapServer or WMS), drawn above OpenStreetMap and below your data.
+  // The server must support EPSG:3857 and allow CORS.
+  overlays: [
+    { id: 'gsni_geology', name: 'GSNI geology',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '8,10',            // optional: override / add layer ids (ArcGIS), or layer names (WMS)
+      opacity: 0.6,                  // 0 (invisible) to 1 (solid) - the legend slider starts here
+      visible: true, attribution: '&copy; BGS / GSNI' }
+    // WMS example: { id: 'w', name: 'My WMS', url: 'https://example.org/wms', layers: 'geology_50k', version: '1.3.0' }
+  ],
+  layerZooms: {},                        // optional tile-zoom range per layer, e.g. { Boreholes: [10, 14] } (the export script prints this line)
   legendLabels: {
     Boreholes_rule0: '0 – 5 m', Boreholes_rule2: '5 – 10 m', Boreholes_rule4: '10 – 20 m',
     Boreholes_rule6: '20 – 100 m', Boreholes_rule8: '> 100 m',
@@ -135,7 +151,7 @@ map.on('click', e => {
   if (!feats.length) return;
   let i = 0;
   const n = feats.length;
-  const popup = new maplibregl.Popup({ maxWidth: '440px' }).setLngLat(e.lngLat).addTo(map);
+  const popup = new maplibregl.Popup({ maxWidth: '360px' }).setLngLat(e.lngLat).addTo(map);
   const render = () => {
     const rows = Object.entries(feats[i].properties)
       .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${cell(v)}</td></tr>`).join('');
@@ -143,7 +159,7 @@ map.on('click', e => {
       `<div class="pophead"><button class="nav" data-d="-1" ${n < 2 ? 'disabled' : ''}>&#9664;</button>` +
       `<span>${i + 1} of ${n} record${n > 1 ? 's' : ''}</span>` +
       `<button class="nav" data-d="1" ${n < 2 ? 'disabled' : ''}>&#9654;</button></div>` +
-      `<div style="max-height:240px;overflow:auto"><table>${rows}</table></div>`);
+      `<div style="max-height:220px;overflow:auto"><table>${rows}</table></div>`);
     popup.getElement().querySelectorAll('.nav').forEach(b => b.onclick = () => {
       i = (i + Number(b.dataset.d) + n) % n;
       render();
@@ -277,6 +293,42 @@ function updateScaleState() {
 }
 map.on('zoom', updateScaleState);
 
+// ---------- WMS overlays ----------
+function wmsTileUrl(w) {
+  const v = w.version || '1.3.0';
+  return w.url + (w.url.includes('?') ? '&' : '?') +
+    `service=WMS&version=${v}&request=GetMap&layers=${encodeURIComponent(w.layers)}&styles=${w.styles || ''}` +
+    `&format=${w.format || 'image/png'}&transparent=true&${v === '1.3.0' ? 'crs' : 'srs'}=EPSG:3857` +
+    `&width=256&height=256&bbox={bbox-epsg-3857}`;
+}
+// ArcGIS REST MapServer: url may end in /MapServer or /MapServer/<layerId>
+function arcgisTileUrl(w) {
+  const m = w.url.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
+  const base = m ? m[1] : w.url;
+  const ids = w.layers || (m && m[2]);
+  return `${base}/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&dpi=96` +
+    `&format=png32&transparent=true&f=image` + (ids ? `&layers=show:${ids}` : '');
+}
+const overlayTileUrl = w => /\/MapServer/i.test(w.url) ? arcgisTileUrl(w) : wmsTileUrl(w);
+function buildWmsLegend() {
+  if (!CONFIG.overlays.length) return;
+  const lg = document.getElementById('legend');
+  lg.insertAdjacentHTML('beforeend', '<h4>Overlays</h4>');
+  CONFIG.overlays.forEach(w => {
+    const op = Math.round((w.opacity ?? 1) * 100);
+    const d = document.createElement('div');
+    d.innerHTML = `<label><input type="checkbox" ${w.visible === false ? '' : 'checked'}> <span>${esc(w.name || w.id)}</span></label>` +
+      `<label class="op">Opacity <input type="range" min="0" max="100" value="${op}"><span>${op}%</span></label>`;
+    const [cb, rng] = d.querySelectorAll('input');
+    cb.onchange = () => map.setLayoutProperty(w.id, 'visibility', cb.checked ? 'visible' : 'none');
+    rng.oninput = () => {
+      map.setPaintProperty(w.id, 'raster-opacity', rng.value / 100);
+      rng.nextElementSibling.textContent = rng.value + '%';
+    };
+    lg.appendChild(d);
+  });
+}
+
 map.on('load', () => {
   // Insert the OSM basemap above the background but below your data layers
   map.addSource('osm', {
@@ -286,7 +338,17 @@ map.on('load', () => {
   });
   const first = map.getStyle().layers.find(l => l.type !== 'background');
   map.addLayer({ id: 'osm', type: 'raster', source: 'osm' }, first && first.id);
+  const firstData = map.getStyle().layers.find(l => l['source-layer']);
+  CONFIG.overlays.forEach(w => {
+    map.addSource(w.id, { type: 'raster', tileSize: 256, tiles: [overlayTileUrl(w)], attribution: w.attribution || '' });
+    map.addLayer({
+      id: w.id, type: 'raster', source: w.id,
+      layout: { visibility: w.visible === false ? 'none' : 'visible' },
+      paint: { 'raster-opacity': w.opacity ?? 1 }          // <- transparency
+    }, firstData && firstData.id);
+  });
   buildLegend();
+  buildWmsLegend();
   loadScaleInfo().then(updateScaleState);
 });
 

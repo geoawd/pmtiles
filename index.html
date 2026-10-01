@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+d<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -34,6 +34,13 @@
   .sw { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 18px; height: 18px; }
   .sw i { display: block; box-sizing: border-box; position: relative; }
   .sw i b { position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: #000; }
+  #legend .offscale .ent { opacity: .4; }
+  #legend .eye { display: none; margin-left: auto; width: 16px; height: 16px; }
+  #legend .offscale .eye { display: inline-block; }
+  #legend .offscale .grp { color: #d00000; }
+  .pophead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 20px 4px 0; margin-bottom: 4px; border-bottom: 1px solid #ddd; font-weight: 600; }
+  .pophead .nav { padding: 1px 7px; font-size: 11px; }
+  .pophead .nav:disabled { opacity: .35; cursor: default; }
   .maplibregl-popup-content table th { background: #eee; }
 </style>
 </head>
@@ -41,7 +48,7 @@
 <div id="map"></div>
 <div id="toolbar">
   <button id="boxBtn">Select by box</button>
-  <button id="dlBtn">Download hyperlinks</button>
+  <button id="legendBtn" class="active">Legend</button>
 </div>
 <div id="coords">Move the cursor…</div>
 <div id="legend"></div>
@@ -57,9 +64,9 @@
 <script>
 // ---------------- CONFIG ----------------
 const CONFIG = {
-  maxLinks: 10,                         // max hyperlinks in the download
   styleUrl: 'style.json',
   queryLayers: null,                     // null = auto-detect every layer that uses a vector source in your style; or list ids, e.g. ['my-points']
+  layerZooms: { Boreholes: [13, 14],  Site_Reports: [13, 14]},                        // optional tile-zoom range per layer, e.g. { Boreholes: [10, 14] } (the export script prints this line)
   legendLabels: {
     Boreholes_rule0: '0 – 5 m', Boreholes_rule2: '5 – 10 m', Boreholes_rule4: '10 – 20 m',
     Boreholes_rule6: '20 – 100 m', Boreholes_rule8: '> 100 m',
@@ -121,17 +128,28 @@ function queryData(geom) {
 }
 const around = (p, r = 5) => [[p.x - r, p.y - r], [p.x + r, p.y + r]];
 
-// Click popup (small tolerance so points are easy to hit)
+// Click popup (small tolerance so points are easy to hit) with a pager for overlapping records
 map.on('click', e => {
   if (boxMode) return;
-  const feats = queryData(around(e.point)).slice(0, 5);
+  const feats = queryData(around(e.point));
   if (!feats.length) return;
-  const html = feats.map(f =>
-    `<table>${Object.entries(f.properties)
-      .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${cell(v)}</td></tr>`).join('')}</table>`
-  ).join('<hr>');
-  new maplibregl.Popup({ maxWidth: '440px' }).setLngLat(e.lngLat)
-    .setHTML(`<div style="max-height:260px;overflow:auto">${html}</div>`).addTo(map);
+  let i = 0;
+  const n = feats.length;
+  const popup = new maplibregl.Popup({ maxWidth: '440px' }).setLngLat(e.lngLat).addTo(map);
+  const render = () => {
+    const rows = Object.entries(feats[i].properties)
+      .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${cell(v)}</td></tr>`).join('');
+    popup.setHTML(
+      `<div class="pophead"><button class="nav" data-d="-1" ${n < 2 ? 'disabled' : ''}>&#9664;</button>` +
+      `<span>${i + 1} of ${n} record${n > 1 ? 's' : ''}</span>` +
+      `<button class="nav" data-d="1" ${n < 2 ? 'disabled' : ''}>&#9654;</button></div>` +
+      `<div style="max-height:240px;overflow:auto"><table>${rows}</table></div>`);
+    popup.getElement().querySelectorAll('.nav').forEach(b => b.onclick = () => {
+      i = (i + Number(b.dataset.d) + n) % n;
+      render();
+    });
+  };
+  render();
 });
 map.on('mousemove', e => {
   if (!boxMode) map.getCanvas().style.cursor = queryData(around(e.point, 3)).length ? 'pointer' : '';
@@ -145,7 +163,7 @@ const fmtFilter = f => {
   return JSON.stringify(f).slice(0, 40);
 };
 const col = (v, d = '#999') => (typeof v === 'string' ? v : d);
-const setVis = (ids, on) => ids.forEach(id => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+const setVis = (ids, on) => { ids.forEach(id => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')); updateScaleState(); };
 
 function swatch(l, dot) {
   const p = l.paint || {};
@@ -166,8 +184,7 @@ function buildLegend() {
   const sourceLayers = [...new Set(st.layers.filter(l => l['source-layer']).map(l => l['source-layer']))];
   const groups = (st.metadata && st.metadata['mapsplat:legend-groups']) || [{ name: 'Layers', layers: sourceLayers }];
   const lg = document.getElementById('legend');
-  lg.innerHTML = '<h4>Basemap</h4><label><input type="checkbox" id="osmChk" checked> OpenStreetMap</label>';
-  document.getElementById('osmChk').onchange = e => setVis(['osm'], e.target.checked);
+  lg.innerHTML = '';
 
   groups.forEach(g => {
     lg.insertAdjacentHTML('beforeend', `<h4>${esc(g.name)}</h4>`);
@@ -182,9 +199,10 @@ function buildLegend() {
         else entries.push({ l, ids: [l.id], dot: false });
       });
       const gl = document.createElement('div');
+      gl.dataset.sl = sl;
       const gchk = document.createElement('label');
       gchk.className = 'grp';
-      gchk.innerHTML = `<input type="checkbox" checked> ${esc(sl.replace(/_/g, ' '))}`;
+      gchk.innerHTML = `<input type="checkbox" checked> <span>${esc(sl.replace(/_/g, ' '))}</span><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/></svg>`;
       gl.appendChild(gchk);
       const boxes = [];
       entries.forEach(en => {
@@ -205,6 +223,60 @@ function buildLegend() {
   });
 }
 
+// ---------- Scale visibility ----------
+// Works out the zoom range of each layer from (in priority order) CONFIG.layerZooms,
+// minzoom/maxzoom in the style, or per-layer zooms stored in the PMTiles metadata.
+let scaleInfo = {}, archiveMax = null;
+async function loadScaleInfo() {
+  const st = map.getStyle();
+  try {
+    const src = Object.values(st.sources).find(s => s.type === 'vector' && /^pmtiles:\/\//.test(s.url || ''));
+    if (src) {
+      const pm = new pmtiles.PMTiles(new URL(src.url.replace('pmtiles://', ''), location.href).href);
+      const [h, md] = await Promise.all([pm.getHeader(), pm.getMetadata()]);
+      archiveMax = h.maxZoom;
+      let vl = md.vector_layers;
+      if (!vl && typeof md.json === 'string') vl = JSON.parse(md.json).vector_layers;
+      (vl || []).forEach(v => {
+        if (typeof v.minzoom === 'number' || typeof v.maxzoom === 'number')
+          scaleInfo[v.id] = { tile: true, min: v.minzoom ?? 0, max: v.maxzoom ?? Infinity };
+      });
+    }
+  } catch (e) { console.warn('Could not read PMTiles metadata', e); }
+  const bySl = {};
+  st.layers.filter(l => l['source-layer']).forEach(l => (bySl[l['source-layer']] ||= []).push(l));
+  Object.entries(bySl).forEach(([sl, ls]) => {
+    if (ls.some(l => l.minzoom != null || l.maxzoom != null))
+      scaleInfo[sl] = { tile: false, min: Math.min(...ls.map(l => l.minzoom ?? 0)), max: Math.max(...ls.map(l => l.maxzoom ?? 24)) };
+  });
+  Object.entries(CONFIG.layerZooms).forEach(([sl, [a, b]]) => scaleInfo[sl] = { tile: true, min: a, max: b });
+}
+function scaleState(sl) {
+  const s = scaleInfo[sl];
+  if (!s) return { hidden: false };
+  const z = map.getZoom(), tz = Math.floor(z);
+  if (s.tile) {   // tile zoom z is drawn for map zooms z .. z+1 (and forever if it is the archive's top zoom)
+    const top = (archiveMax != null && s.max >= archiveMax) ? Infinity : s.max;
+    if (tz < s.min) return { hidden: true, msg: `zoom in to level ${s.min}` };
+    if (tz > top) return { hidden: true, msg: `zoom out below level ${s.max + 1}` };
+  } else {
+    if (z < s.min) return { hidden: true, msg: `zoom in to level ${s.min}` };
+    if (z >= s.max) return { hidden: true, msg: `zoom out below level ${s.max}` };
+  }
+  return { hidden: false };
+}
+const layerOn = sl => map.getStyle().layers.some(l =>
+  l['source-layer'] === sl && map.getLayoutProperty(l.id, 'visibility') !== 'none');
+function updateScaleState() {
+  if (!map.getStyle()) return;
+  document.querySelectorAll('#legend [data-sl]').forEach(g => {
+    const s = scaleState(g.dataset.sl);
+    g.classList.toggle('offscale', s.hidden);
+    g.querySelector('.grp').title = s.hidden ? `Not visible at this scale – ${s.msg}` : '';
+  });
+}
+map.on('zoom', updateScaleState);
+
 map.on('load', () => {
   // Insert the OSM basemap above the background but below your data layers
   map.addSource('osm', {
@@ -215,6 +287,7 @@ map.on('load', () => {
   const first = map.getStyle().layers.find(l => l.type !== 'background');
   map.addLayer({ id: 'osm', type: 'raster', source: 'osm' }, first && first.id);
   buildLegend();
+  loadScaleInfo().then(updateScaleState);
 });
 
 // ---------- Box selection ----------
@@ -301,27 +374,13 @@ document.getElementById('closeBtn').onclick = () => {
   map.resize();
 };
 
-// ---------- Download hyperlinks ----------
-// Uses the current selection if there is one, otherwise everything rendered in the view.
-document.getElementById('dlBtn').onclick = () => {
-  const feats = selected.length ? selected
-    : queryData(undefined);
-  const links = new Set();
-  for (const f of feats) {
-    for (const v of Object.values(f.properties)) {
-      if (isLink(v)) links.add(v.trim());
-      if (links.size >= CONFIG.maxLinks) break;
-    }
-    if (links.size >= CONFIG.maxLinks) break;
-  }
-  if (!links.size) { alert('No hyperlinks found.'); return; }
-  const csv = 'url\r\n' + [...links].map(u => `"${u.replace(/"/g, '""')}"`).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = 'hyperlinks.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
-  if (links.size >= CONFIG.maxLinks) alert(`Limited to ${CONFIG.maxLinks} links (CONFIG.maxLinks).`);
+// ---------- Legend toggle ----------
+const legendBtn = document.getElementById('legendBtn');
+legendBtn.onclick = () => {
+  const el = document.getElementById('legend');
+  const show = el.style.display === 'none';
+  el.style.display = show ? '' : 'none';
+  legendBtn.classList.toggle('active', show);
 };
 </script>
 </body>

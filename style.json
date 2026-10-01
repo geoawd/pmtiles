@@ -335,14 +335,6 @@
           "Site_Reports",
           "Boreholes"
         ]
-      },
-      {
-        "name": "Geology (Digital 250K)",
-        "layers": [
-          "250K_Superficial",
-          "250K_Bedrock",
-          "250K_Linear"
-        ]
       }
     ],
     "mapsplat:version": "0.43.1",

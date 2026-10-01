@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Layers map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  html, body { margin: 0; height: 100%; font: 13px system-ui, sans-serif; }
+  #map { position: absolute; inset: 0 0 0 0; }
+  body.has-table #map { bottom: 240px; }
+  #toolbar { position: absolute; top: 10px; left: 10px; z-index: 5; display: flex; gap: 6px; }
+  button { padding: 7px 11px; border: 1px solid #888; border-radius: 4px; background: #fff; cursor: pointer; font: inherit; }
+  button.active { background: #2980b9; color: #fff; }
+  #coords { position: absolute; left: 10px; bottom: 30px; z-index: 5; background: rgba(255,255,255,.9); padding: 3px 7px; border-radius: 3px; }
+  body.has-table #coords { bottom: 250px; }
+  #selbox { position: absolute; border: 2px dashed #2980b9; background: rgba(41,128,185,.15); pointer-events: none; display: none; }
+  #panel { position: absolute; left: 0; right: 0; bottom: 0; height: 240px; background: #fff; border-top: 2px solid #888; display: none; flex-direction: column; }
+  body.has-table #panel { display: flex; }
+  #panel header { padding: 6px 10px; background: #f2f2f2; display: flex; justify-content: space-between; align-items: center; }
+  #tabs { display: flex; gap: 2px; padding: 4px 8px 0; background: #f2f2f2; border-bottom: 1px solid #ccc; }
+  #tabs .tab { border-radius: 4px 4px 0 0; border-bottom: none; background: #e4e4e4; }
+  #tabs .tab.on { background: #fff; font-weight: 600; }
+  #tablewrap { overflow: auto; flex: 1; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 3px 8px; text-align: left; white-space: nowrap; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+  th { position: sticky; top: 0; background: #eee; }
+  #legend { position: absolute; top: 52px; left: 10px; z-index: 5; background: rgba(255,255,255,.95); border: 1px solid #aaa; border-radius: 4px; padding: 8px 10px; max-height: calc(100% - 140px); overflow: auto; min-width: 190px; }
+  #legend h4 { margin: 8px 0 3px; font-size: 13px; }
+  #legend h4:first-child { margin-top: 0; }
+  #legend label { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+  #legend .grp { font-weight: 600; margin-top: 4px; }
+  #legend .ent { margin-left: 18px; }
+  .sw { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 18px; height: 18px; }
+  .sw i { display: block; box-sizing: border-box; position: relative; }
+  .sw i b { position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px; border-radius: 50%; background: #000; }
+  .maplibregl-popup-content table th { background: #eee; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="toolbar">
+  <button id="boxBtn">Select by box</button>
+  <button id="dlBtn">Download hyperlinks</button>
+</div>
+<div id="coords">Move the cursor…</div>
+<div id="legend"></div>
+<div id="panel">
+  <header><span id="count"></span><button id="closeBtn">Close</button></header>
+  <div id="tabs"></div>
+  <div id="tablewrap"></div>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+<script>
+// ---------------- CONFIG ----------------
+const CONFIG = {
+  maxLinks: 10,                         // max hyperlinks in the download
+  styleUrl: 'style.json',
+  queryLayers: null,                     // null = auto-detect every layer that uses a vector source in your style; or list ids, e.g. ['my-points']
+  legendLabels: {
+    Boreholes_rule0: '0 – 5 m', Boreholes_rule2: '5 – 10 m', Boreholes_rule4: '10 – 20 m',
+    Boreholes_rule6: '20 – 100 m', Boreholes_rule8: '> 100 m',
+    Site_Reports_rule0: 'Site reports'
+  },                      // optional nicer names, e.g. { 'Boreholes_rule2_3': 'Depth 5 - 50 m' }
+  center: [-6.5, 54.6],                  // [lon, lat]
+  zoom: 8
+};
+// ----------------------------------------
+
+// Irish Grid (TM65), used for the coordinate read-out
+proj4.defs('EPSG:29902',
+  '+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 ' +
+  '+ellps=mod_airy +towgs84=482.5,-130.6,564.6,-1.042,-0.214,-0.631,8.15 +units=m +no_defs');
+
+maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
+
+const map = new maplibregl.Map({
+  container: 'map', style: CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+map.addControl(new maplibregl.ScaleControl());
+
+const isLink = v => typeof v === 'string' && /^https:/i.test(v.trim());
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cell = v => {
+  if (v === null || v === undefined) return '';
+  return isLink(v)
+    ? `<a href="${esc(v.trim())}" target="_blank" rel="noopener">${esc(v)}</a>`
+    : esc(v);
+};
+
+// Irish Grid read-out
+map.on('mousemove', e => {
+  const [x, y] = proj4('EPSG:4326', 'EPSG:29902', [e.lngLat.lng, e.lngLat.lat]);
+  document.getElementById('coords').textContent =
+    `Irish Grid (EPSG:29902)  E ${x.toFixed(0)}  N ${y.toFixed(0)}`;
+});
+
+// Work out which style layers are data layers (anything on a vector source)
+function dataLayers() {
+  if (CONFIG.queryLayers) return CONFIG.queryLayers;
+  const st = map.getStyle();
+  return st.layers
+    .filter(l => l.source && st.sources[l.source] && st.sources[l.source].type === 'vector')
+    .map(l => l.id);
+}
+// Query helper: de-duplicates features split across tiles or drawn by several layers
+function queryData(geom) {
+  const layers = dataLayers();
+  if (!layers.length) return [];
+  const seen = new Set();
+  return map.queryRenderedFeatures(geom, { layers }).filter(f => {
+    const key = f.source + '|' + (f.sourceLayer || '') + '|' + (f.id ?? '') + '|' + JSON.stringify(f.properties);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+const around = (p, r = 5) => [[p.x - r, p.y - r], [p.x + r, p.y + r]];
+
+// Click popup (small tolerance so points are easy to hit)
+map.on('click', e => {
+  if (boxMode) return;
+  const feats = queryData(around(e.point)).slice(0, 5);
+  if (!feats.length) return;
+  const html = feats.map(f =>
+    `<table>${Object.entries(f.properties)
+      .map(([k, v]) => `<tr><th>${esc(k)}</th><td>${cell(v)}</td></tr>`).join('')}</table>`
+  ).join('<hr>');
+  new maplibregl.Popup({ maxWidth: '440px' }).setLngLat(e.lngLat)
+    .setHTML(`<div style="max-height:260px;overflow:auto">${html}</div>`).addTo(map);
+});
+map.on('mousemove', e => {
+  if (!boxMode) map.getCanvas().style.cursor = queryData(around(e.point, 3)).length ? 'pointer' : '';
+});
+
+// ---------- Basemap + legend + layer toggles ----------
+const OPS = { '<=': '≤', '>=': '≥', '<': '<', '>': '>', '==': '=', '!=': '≠' };
+const fmtFilter = f => {
+  if (!f) return null;
+  if (OPS[f[0]] && Array.isArray(f[1]) && f[1][0] === 'get') return `${f[1][1]} ${OPS[f[0]]} ${f[2]}`;
+  return JSON.stringify(f).slice(0, 40);
+};
+const col = (v, d = '#999') => (typeof v === 'string' ? v : d);
+const setVis = (ids, on) => ids.forEach(id => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+
+function swatch(l, dot) {
+  const p = l.paint || {};
+  let inner;
+  if (l.type === 'circle') {
+    const d = Math.max(8, Math.min(16, (p['circle-radius'] || 5) * 2));
+    inner = `<i style="width:${d}px;height:${d}px;border-radius:50%;background:${col(p['circle-color'])};border:1px solid ${col(p['circle-stroke-color'], '#000')}">${dot ? '<b></b>' : ''}</i>`;
+  } else if (l.type === 'fill') {
+    inner = `<i style="width:16px;height:12px;background:${col(p['fill-color'])};opacity:${typeof p['fill-opacity'] === 'number' ? p['fill-opacity'] : 1};border:1px solid ${col(p['fill-outline-color'], 'rgba(0,0,0,.4)')}"></i>`;
+  } else {
+    inner = `<i style="width:16px;height:0;border-top:${Math.max(2, p['line-width'] || 2)}px solid ${col(p['line-color'])}"></i>`;
+  }
+  return `<span class="sw">${inner}</span>`;
+}
+
+function buildLegend() {
+  const st = map.getStyle();
+  const sourceLayers = [...new Set(st.layers.filter(l => l['source-layer']).map(l => l['source-layer']))];
+  const groups = (st.metadata && st.metadata['mapsplat:legend-groups']) || [{ name: 'Layers', layers: sourceLayers }];
+  const lg = document.getElementById('legend');
+  lg.innerHTML = '<h4>Basemap</h4><label><input type="checkbox" id="osmChk" checked> OpenStreetMap</label>';
+  document.getElementById('osmChk').onchange = e => setVis(['osm'], e.target.checked);
+
+  groups.forEach(g => {
+    lg.insertAdjacentHTML('beforeend', `<h4>${esc(g.name)}</h4>`);
+    g.layers.forEach(sl => {
+      // one entry per "rule"; small black centre-dot layers are folded into the previous entry
+      const entries = [];
+      st.layers.filter(l => l['source-layer'] === sl).forEach(l => {
+        const p = l.paint || {};
+        const isDot = (l.type === 'circle' && p['circle-color'] === '#000000' && (p['circle-radius'] || 0) < 2.5)
+          || (l.type === 'fill' && p['fill-opacity'] === 0);   // invisible hit-test fill
+        if (isDot && entries.length) { entries[entries.length - 1].ids.push(l.id); entries[entries.length - 1].dot = true; }
+        else entries.push({ l, ids: [l.id], dot: false });
+      });
+      const gl = document.createElement('div');
+      const gchk = document.createElement('label');
+      gchk.className = 'grp';
+      gchk.innerHTML = `<input type="checkbox" checked> ${esc(sl.replace(/_/g, ' '))}`;
+      gl.appendChild(gchk);
+      const boxes = [];
+      entries.forEach(en => {
+        const lab = document.createElement('label');
+        lab.className = 'ent';
+        const text = CONFIG.legendLabels[en.l.id] || fmtFilter(en.l.filter) || en.l.id;
+        lab.innerHTML = `<input type="checkbox" checked>${swatch(en.l, en.dot)}<span>${esc(text)}</span>`;
+        const cb = lab.querySelector('input');
+        cb.onchange = () => setVis(en.ids, cb.checked);
+        boxes.push({ cb, en });
+        gl.appendChild(lab);
+      });
+      gchk.querySelector('input').onchange = e => {
+        boxes.forEach(b => { b.cb.checked = e.target.checked; setVis(b.en.ids, e.target.checked); });
+      };
+      lg.appendChild(gl);
+    });
+  });
+}
+
+map.on('load', () => {
+  // Insert the OSM basemap above the background but below your data layers
+  map.addSource('osm', {
+    type: 'raster', tileSize: 256, maxzoom: 19,
+    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  });
+  const first = map.getStyle().layers.find(l => l.type !== 'background');
+  map.addLayer({ id: 'osm', type: 'raster', source: 'osm' }, first && first.id);
+  buildLegend();
+});
+
+// ---------- Box selection ----------
+let boxMode = false, start = null, selected = [];
+const boxBtn = document.getElementById('boxBtn');
+const boxEl = document.createElement('div');
+boxEl.id = 'selbox';
+map.getCanvasContainer().appendChild(boxEl);
+
+boxBtn.onclick = () => {
+  boxMode = !boxMode;
+  boxBtn.classList.toggle('active', boxMode);
+  map.getCanvas().style.cursor = boxMode ? 'crosshair' : '';
+  boxMode ? map.dragPan.disable() : map.dragPan.enable();
+};
+
+const pos = e => {
+  const r = map.getCanvasContainer().getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+};
+const drawBox = cur => {
+  Object.assign(boxEl.style, {
+    display: 'block',
+    left: Math.min(start.x, cur.x) + 'px', top: Math.min(start.y, cur.y) + 'px',
+    width: Math.abs(cur.x - start.x) + 'px', height: Math.abs(cur.y - start.y) + 'px'
+  });
+};
+map.getCanvasContainer().addEventListener('mousedown', e => {
+  if (!boxMode || e.button !== 0) return;
+  start = pos(e);
+  const move = ev => drawBox(pos(ev));
+  const s = start;
+  const up2 = ev => {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up2);
+    boxEl.style.display = 'none';
+    runSelection(s, pos(ev));
+    start = null;
+  };
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up2);
+});
+
+function runSelection(a, b) {
+  boxMode = false;
+  boxBtn.classList.remove('active');
+  map.getCanvas().style.cursor = '';
+  map.dragPan.enable();
+  if (Math.abs(a.x - b.x) < 3 && Math.abs(a.y - b.y) < 3) return; // ignore plain clicks
+
+  selected = queryData([[a.x, a.y], [b.x, b.y]]);
+  showTable(selected);
+}
+
+let activeTab = null;
+function showTable(feats) {
+  // one tab per layer (source-layer), each with its own columns
+  const groups = {};
+  feats.forEach(f => (groups[f.sourceLayer || f.layer.id] ||= []).push(f));
+  const names = Object.keys(groups);
+  if (!names.includes(activeTab)) activeTab = names[0];
+
+  document.getElementById('count').textContent = `${feats.length} record(s) selected`;
+  const wrap = document.getElementById('tablewrap');
+  if (!feats.length) {
+    document.getElementById('tabs').innerHTML = '';
+    wrap.innerHTML = '<p style="padding:10px">No features in that box.</p>';
+  } else {
+    document.getElementById('tabs').innerHTML = names.map(n =>
+      `<button class="tab${n === activeTab ? ' on' : ''}" data-tab="${esc(n)}">${esc(n.replace(/_/g, ' '))} (${groups[n].length})</button>`).join('');
+    document.querySelectorAll('#tabs .tab').forEach(b => b.onclick = () => { activeTab = b.dataset.tab; showTable(feats); });
+    const rows = groups[activeTab];
+    const cols = [...new Set(rows.flatMap(f => Object.keys(f.properties)))];
+    wrap.innerHTML = `<table><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
+      rows.map(f => `<tr>${cols.map(c => `<td>${cell(f.properties[c])}</td>`).join('')}</tr>`).join('') +
+      '</tbody></table>';
+  }
+  document.body.classList.add('has-table');
+  map.resize();
+}
+document.getElementById('closeBtn').onclick = () => {
+  document.body.classList.remove('has-table');
+  selected = [];
+  map.resize();
+};
+
+// ---------- Download hyperlinks ----------
+// Uses the current selection if there is one, otherwise everything rendered in the view.
+document.getElementById('dlBtn').onclick = () => {
+  const feats = selected.length ? selected
+    : queryData(undefined);
+  const links = new Set();
+  for (const f of feats) {
+    for (const v of Object.values(f.properties)) {
+      if (isLink(v)) links.add(v.trim());
+      if (links.size >= CONFIG.maxLinks) break;
+    }
+    if (links.size >= CONFIG.maxLinks) break;
+  }
+  if (!links.size) { alert('No hyperlinks found.'); return; }
+  const csv = 'url\r\n' + [...links].map(u => `"${u.replace(/"/g, '""')}"`).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'hyperlinks.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  if (links.size >= CONFIG.maxLinks) alert(`Limited to ${CONFIG.maxLinks} links (CONFIG.maxLinks).`);
+};
+</script>
+</body>
+</html>

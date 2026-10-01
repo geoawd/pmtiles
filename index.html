@@ -82,7 +82,7 @@ const CONFIG = {
       visible: true, attribution: '&copy; BGS / GSNI' }
     // WMS example: { id: 'w', name: 'My WMS', url: 'https://example.org/wms', layers: 'geology_50k', version: '1.3.0' }
   ],
-  layerZooms: {},                        // optional tile-zoom range per layer, e.g. { Boreholes: [10, 14] } (the export script prints this line)
+   layerZooms: { Boreholes: [13, 14],  Site_Reports: [13, 14]},  ,                        // optional tile-zoom range per layer, e.g. { Boreholes: [10, 14] } (the export script prints this line)
   legendLabels: {
     Boreholes_rule0: '0 – 5 m', Boreholes_rule2: '5 – 10 m', Boreholes_rule4: '10 – 20 m',
     Boreholes_rule6: '20 – 100 m', Boreholes_rule8: '> 100 m',

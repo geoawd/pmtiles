@@ -18,15 +18,41 @@ window.CONFIG = {
   bounds: [[-8.5, 53.5], [-5.0, 55.6]], // project extent: southwest and northeast [longitude, latitude]
   layerDefaults: {},          // vector source-layer names enabled at startup, e.g. { Boreholes: true }
   overlays: [
+
+      { id: '10K_landform', name: 'Landform', group: 'Geology (10K) WMS',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '1', opacity: 0.6, visible: true, attribution: '&copy; GSNI' },
+
+      { id: '10K_linear', name: 'Linear', group: 'Geology (10K) WMS',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '2', opacity: 0.6, visible: true, attribution: '&copy; GSNI' },
+
+      { id: '10K_mass_movement', name: 'Mass Movement', group: 'Geology (10K) WMS',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '3', opacity: 0.6, visible: true, attribution: '&copy; GSNI' },
+
+      { id: '10K_artificial', name: 'Artificial', group: 'Geology (10K) WMS',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '4', opacity: 0.6, visible: true, attribution: '&copy; GSNI' },
+
+      { id: '10K_superficial', name: 'Superficial', group: 'Geology (10K) WMS',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '5', opacity: 0.6, visible: true, attribution: '&copy; GSNI' },
+
+      { id: '10K_bedrock', name: 'Bedrock', group: 'Geology (10K) WMS',
+      url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geology_Landsat_WMS/MapServer/',
+      layers: '6', opacity: 0.6, visible: true, attribution: '&copy; GSNI' },
+
+
     { id: 'gsni_pseudogravity', name: 'Pseudogravity', group: 'Geophysics',
       url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
-      layers: '4', opacity: 0.6, visible: true, attribution: '&copy; BGS / GSNI' },
+      layers: '4', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
     { id: 'gsni_rtp', name: 'Reduced to pole', group: 'Geophysics',
       url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
-      layers: '7', opacity: 0.6, visible: true, attribution: '&copy; BGS / GSNI' },
+      layers: '7', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
     { id: 'gsni_residual', name: 'Residual', group: 'Geophysics',
       url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
-      layers: '3', opacity: 0.6, visible: true, attribution: '&copy; BGS / GSNI' },
+      layers: '3', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
     { id: 'esri_world_imagery', name: 'ESRI World Imagery', group: 'Imagery',
       tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       opacity: 0.6, visible: true,
@@ -75,6 +101,7 @@ window.CONFIG = {
     themes: [
     { name: 'Boreholes', layers: ['Boreholes', 'Site_Reports'], overlays: ['esri_world_imagery'] },
     { name: 'Geology', layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] },
+    { name: 'Geology (10K) WMS', overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10k_landform'] },
     { name: 'Geophysics', overlays: ['gsni_pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
     { name: 'Geochemistry', overlays: ['esri_world_imagery'] },
     { name: 'Hydrogeology', overlays: ['esri_world_imagery'] },

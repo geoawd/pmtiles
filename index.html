@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MapLibre Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="css/app.css">
+<style id="pageStyle"></style>
+</head>
+<body>
+<div id="side">
+  <nav id="rail" aria-label="Map tools">
+    <button data-tool="legend" title="Legend and layers" aria-label="Legend and layers">
+      <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></svg></button>
+    <button data-tool="search" title="Search" aria-label="Search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/></svg></button>
+    <button id="boxBtn" title="Select by box (Esc to cancel)" aria-label="Select by box">
+      <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1" stroke-dasharray="3 2.5"/><path d="m13 13 3 7 1.5-3 3-1.5-7.500-2.500Z" fill="currentColor"/></svg></button>
+          <button id="terrainBtn" title="3D terrain view" aria-label="3D terrain view">
+      <svg viewBox="0 0 24 24"><path d="m3 19 6-11 4 7 3-4 5 8Z"/></svg></button>
+    <button id="printBtn" title="Print map and key" aria-label="Print map and key">
+      <svg viewBox="0 0 24 24"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="1.500"/><path d="M7 14h10v6H7z"/></svg></button>
+  </nav>
+  <div id="drawer">
+    <section id="legendPage" class="dpage">
+      <div class="dhead"><span>Legend</span><button class="dclose" aria-label="Close">&times;</button></div>
+      <div class="themebar" id="themeBar" hidden><select id="themeSel" aria-label="Theme"></select></div>
+      <div class="dbody" id="legend"></div>
+    </section>
+    <section id="searchPage" class="dpage">
+      <div class="dhead"><span>Search</span><button class="dclose" aria-label="Close">&times;</button></div>
+      <div class="dbody form">
+        <label for="searchLayer">Layer</label><select id="searchLayer"></select>
+        <label>Fields to search</label><div id="searchFields"></div>
+        <label for="searchText">Text</label><input id="searchText" type="text" autocomplete="off">
+        <button id="runSearch" class="primary">Search</button>
+        <span class="hint">Searches features loaded in the current map view. Zoom out to cover more.</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="main">
+  <div id="mapwrap">
+    <div id="map"></div>
+    <div id="geo" role="search">
+      <div class="geobox">
+        <input id="geoIn" type="search" placeholder="Place or grid ref, e.g. J 3374 7396" aria-label="Search for a place or Irish grid reference" autocomplete="off">
+        <button id="geoGo" title="Search" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.500"/><path d="m16 16 5 5"/></svg></button>
+      </div>
+      <ul id="geoList" hidden></ul>
+    </div>
+    <div id="coords">Move the cursor…</div>
+    <div id="toast" role="status"></div>
+    <div id="boxTip">Drag a box on the map</div>
+  </div>
+  <div id="panel">
+    <header><span id="count"></span>
+      <div><button id="csvBtn">Export CSV</button><button id="closeBtn">Close</button></div></header>
+    <div id="tabs"></div>
+    <div id="tablewrap"></div>
+  </div>
+</div>
+
+<div id="printView" aria-hidden="true"></div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+<script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.10.0/dist/index.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

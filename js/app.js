@@ -617,6 +617,15 @@ function validOverlays() {
 function validBasemaps() {
   return validRasterEntries(CONFIG.basemaps || [], 'Basemap', [...reservedRasterIds(), ...validOverlays().map(w => w.id)]);
 }
+function reverseWithinGroups(entries) {
+  const groups = new Map();
+  entries.forEach(entry => {
+    const key = entry.group || 'Overlays';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  });
+  return [...groups.values()].flatMap(group => group.slice().reverse());
+}
 function addRasterLayer(w, beforeId) {
   const tiles = Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)];
   const source = { type: 'raster', tileSize: w.tileSize || 256, tiles };
@@ -761,7 +770,7 @@ map.on('load', () => {
   originalStyleIds = new Set([...Object.keys(style.sources), ...style.layers.map(l => l.id)]);
   const firstData = style.layers.find(l => l['source-layer']);
   const firstSymbol = style.layers.find(l => l.type === 'symbol');
-  validBasemaps().forEach(w => addRasterLayer(w, (firstData || firstSymbol || {}).id));
+  validBasemaps().slice().reverse().forEach(w => addRasterLayer(w, (firstData || firstSymbol || {}).id));
   const tc = CONFIG.terrain;
   terrainLayerBeforeId = firstData && firstData.id;
   if (tc && terrainModels.length && window.MaplibreCOGProtocol) {
@@ -781,7 +790,7 @@ map.on('load', () => {
     }, firstData && firstData.id);
     if (tc.hillshade !== false) registerLayerVisibility('hillshade', tc.hillshadeVisible === true);
   } else $('terrainBtn').style.display = 'none';   // no DTM configured
-  validOverlays().forEach(w => addRasterLayer(w, firstSymbol && firstSymbol.id));
+  reverseWithinGroups(validOverlays()).forEach(w => addRasterLayer(w, firstSymbol && firstSymbol.id));
   buildLegend();
   buildOverlayLegend();
   buildBasemapLegend();

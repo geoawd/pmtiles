@@ -4,8 +4,21 @@ window.CONFIG = {
   title: 'MAPLIBRE DEMO',        // heading on printouts
   styleUrl: 'style.json',
   queryLayers: null,          // null = auto-detect every layer on a vector source in your style; or list ids
+  basemaps: [
+    { id: 'osm', name: 'OpenStreetMap', tiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      maxzoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', opacity: 1, visible: true },
+    { id: 'Gray', name: 'World Light Gray Base', tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}.png',
+      maxzoom: 19, attribution: '&copy; ESRI', opacity: 1, visible: true }
+  ],
+
+  
+
+
+  about: 'Map viewer for Geological Survey of Northern Ireland datasets.',
+  bounds: [[-8.5, 53.5], [-5.0, 55.6]], // project extent: southwest and northeast [longitude, latitude]
+  layerDefaults: {},          // vector source-layer names enabled at startup, e.g. { Boreholes: true }
   overlays: [
-    { id: 'gsni_Pseudogravity', name: 'Pseudogravity', group: 'Geophysics',
+    { id: 'gsni_pseudogravity', name: 'Pseudogravity', group: 'Geophysics',
       url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
       layers: '4', opacity: 0.6, visible: true, attribution: '&copy; BGS / GSNI' },
     { id: 'gsni_rtp', name: 'Reduced to pole', group: 'Geophysics',
@@ -62,7 +75,7 @@ window.CONFIG = {
     themes: [
     { name: 'Boreholes', layers: ['Boreholes', 'Site_Reports'], overlays: ['esri_world_imagery'] },
     { name: 'Geology', layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] },
-    { name: 'Geophysics', overlays: ['gsni_Pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
+    { name: 'Geophysics', overlays: ['gsni_pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
     { name: 'Geochemistry', overlays: ['esri_world_imagery'] },
     { name: 'Hydrogeology', overlays: ['esri_world_imagery'] },
     { name: 'Minerals', overlays: ['esri_world_imagery'] },

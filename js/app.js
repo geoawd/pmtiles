@@ -6,7 +6,27 @@ maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
 if (window.MaplibreCOGProtocol) maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
 const $ = id => document.getElementById(id);
 const map = new maplibregl.Map({ container: 'map', style: CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
+$('aboutContent').textContent = typeof CONFIG.about === 'string' ? CONFIG.about : '';
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+const boundsValid = Array.isArray(CONFIG.bounds) && CONFIG.bounds.length === 2 && CONFIG.bounds.every(p =>
+  Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)) &&
+  CONFIG.bounds[0][0] >= -180 && CONFIG.bounds[1][0] <= 180 &&
+  CONFIG.bounds[0][1] >= -85.051129 && CONFIG.bounds[1][1] <= 85.051129 &&
+  CONFIG.bounds[0][0] < CONFIG.bounds[1][0] && CONFIG.bounds[0][1] < CONFIG.bounds[1][1];
+if (boundsValid) map.addControl({
+  onAdd() {
+    const group = document.createElement('div');
+    group.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const button = document.createElement('button');
+    button.className = 'maplibregl-ctrl-icon maplibregl-ctrl-zoomall';
+    button.type = 'button'; button.title = 'Zoom to all extents'; button.setAttribute('aria-label', button.title);
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M4 4l6 6M20 15v5h-5m5 0-6-6"/></svg>';
+    button.onclick = () => map.fitBounds(CONFIG.bounds, { padding: 40, duration: 700 });
+    group.appendChild(button);
+    return group;
+  },
+  onRemove() {}
+}, 'top-right');
 map.addControl(new maplibregl.ScaleControl());
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
 new ResizeObserver(() => map.resize()).observe($('mapwrap'));   // keeps the map right when menu / results change
@@ -30,6 +50,7 @@ function openTool(name) {
   document.querySelectorAll('#rail [data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   $('legendPage').classList.toggle('active', tool === 'legend');
   $('searchPage').classList.toggle('active', tool === 'search');
+  $('aboutPage').classList.toggle('active', tool === 'about');
   if (tool === 'search') { updateSearchFields(); if (!isMobile()) $('searchText').focus(); }
   if (tool && boxMode) setBox(false);
 }
@@ -123,7 +144,41 @@ const fmtFilter = f => {
   return JSON.stringify(f).slice(0, 40);
 };
 const col = (v, d = '#999') => (typeof v === 'string' ? v.replace(/["'<>;]/g, '') : d);
-const setVis = (ids, on) => { ids.forEach(id => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none')); updateScaleState(); };
+const layerVisibility = new Map();
+function registerLayerVisibility(id, selected) {
+  if (!layerVisibility.has(id)) layerVisibility.set(id, { selected, inTheme: true, groups: new Set() });
+  syncLayerVisibility(id);
+}
+function syncLayerVisibility(id) {
+  const state = layerVisibility.get(id);
+  if (!state || !map.getLayer(id)) return;
+  map.setLayoutProperty(id, 'visibility', state.selected && state.inTheme && !state.groups.size ? 'visible' : 'none');
+}
+function setVis(ids, on) {
+  ids.forEach(id => {
+    const state = layerVisibility.get(id) || { selected: false, inTheme: true, groups: new Set() };
+    state.selected = on;
+    layerVisibility.set(id, state);
+    syncLayerVisibility(id);
+  });
+  updateScaleState();
+}
+function setThemeVisibility(ids, on) {
+  ids.forEach(id => {
+    const state = layerVisibility.get(id);
+    if (!state) return;
+    state.inTheme = on;
+    syncLayerVisibility(id);
+  });
+}
+function setGroupVisibility(ids, key, on) {
+  ids.forEach(id => {
+    const state = layerVisibility.get(id);
+    if (!state) return;
+    on ? state.groups.delete(key) : state.groups.add(key);
+    syncLayerVisibility(id);
+  });
+}
 
 // ---- data-driven colours: a 'match' (or 'step') colour expression becomes one legend entry per class ----
 const COLOR_PROP = { fill: 'fill-color', circle: 'circle-color', line: 'line-color' };
@@ -165,8 +220,8 @@ function applyEntry(en, on) {
   en.ids.forEach(id => {
     const f0 = st.orig[id];
     map.setFilter(id, conds.length ? (f0 ? ['all', f0, ...conds] : ['all', ...conds]) : (f0 || null));
-    map.setLayoutProperty(id, 'visibility', st.hidden.size >= st.total ? 'none' : 'visible');
   });
+  setVis(en.ids, st.hidden.size < st.total);
   updateScaleState();
 }
 
@@ -187,6 +242,8 @@ function swatch(l, dot, color) {   // `color` overrides the layer colour (used f
 const isUrl = u => typeof u === 'string' && /^https?:\/\//i.test(u.trim());
 const ICON_SLIDERS = '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>';
 const ICON_INFO = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>';
+const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 002.8 2.8M9.9 5.2A11 11 0 0112 5c7 0 11 7 11 7a15 15 0 01-4 4.8M6.2 6.2C2.9 8.1 1 12 1 12s4 7 11 7a10 10 0 004.1-.9"/></svg>';
 // Small per-layer panel: transparency slider + optional info link. Returns { btn, panel }.
 const ICON_EXT = '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
 
@@ -300,17 +357,36 @@ function collapser(target, startCollapsed) {   // chevron that collapses a layer
   return b;
 }
 const ctl = { data: {}, ov: {} };   // switches used by themes
+let groupSequence = 0;
 function addGroup(parent, name) {
   const sec = document.createElement('section');
   sec.className = 'lgroup';
-  sec.innerHTML = `<h4 class="lghead" tabindex="0" role="button" aria-expanded="true"><span>${esc(name)}</span>` +
-    `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></h4><div class="lgbody"></div>`;
-  const head = sec.querySelector('.lghead');
-  const toggle = () => head.setAttribute('aria-expanded', !sec.classList.toggle('collapsed'));
-  head.onclick = toggle;
-  head.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+  sec.innerHTML = `<h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>${esc(name)}</span>` +
+    `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>` +
+    `<button class="lgeye" type="button" aria-pressed="false" title="Hide ${esc(name)}" aria-label="Hide ${esc(name)}">${ICON_EYE}</button></h4>` +
+    '<div class="lgbody"></div>';
+  const group = { key: `legend-group-${++groupSequence}`, body: sec.querySelector('.lgbody'), layerIds: new Set(), onVisibilityChange: null };
+  const collapse = sec.querySelector('.lgcollapse');
+  const eye = sec.querySelector('.lgeye');
+  collapse.onclick = () => {
+    const collapsed = sec.classList.toggle('collapsed');
+    collapse.setAttribute('aria-expanded', String(!collapsed));
+  };
+  let visible = true;
+  group.setVisibility = on => {
+    visible = on;
+    eye.innerHTML = visible ? ICON_EYE : ICON_EYE_OFF;
+    const label = `${visible ? 'Hide' : 'Show'} ${name}`;
+    eye.title = label;
+    eye.setAttribute('aria-label', label);
+    eye.setAttribute('aria-pressed', String(!visible));
+    sec.classList.toggle('group-hidden', !visible);
+    setGroupVisibility([...group.layerIds], group.key, visible);
+    if (group.onVisibilityChange) group.onVisibilityChange(visible);
+  };
+  eye.onclick = () => group.setVisibility(!visible);
   parent.appendChild(sec);
-  return sec.querySelector('.lgbody');
+  return group;
 }
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
 function setupThemes() {
@@ -323,14 +399,14 @@ function setupThemes() {
     const t = list[i];
     const all = !t.layers && !t.overlays;
     themeLayers = all ? null : (t.layers || []);
-    // layers outside the theme are switched off and removed from the legend
+    // Theme membership gates rendering without changing the user's checkbox state.
     Object.entries(ctl.data).forEach(([sl, o]) => {
       const inTheme = all || (t.layers || []).includes(sl);
-      o.set(inTheme); o.el.hidden = !inTheme;
+      o.theme(inTheme); o.el.hidden = !inTheme;
     });
     Object.entries(ctl.ov).forEach(([id, o]) => {
       const inTheme = all || (t.overlays || []).includes(id);
-      o.set(all ? o.def : inTheme); o.el.hidden = !inTheme;
+      o.theme(inTheme); o.el.hidden = !inTheme;
     });
     document.querySelectorAll('#legend .lgroup').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
@@ -350,8 +426,10 @@ function buildLegend() {
   const lg = $('legend');
   lg.innerHTML = '';
   groups.forEach(g => {
-    const body = addGroup(lg, g.name);
+    const group = addGroup(lg, g.name);
+    const body = group.body;
     g.layers.forEach(sl => {
+      const initialOn = (CONFIG.layerDefaults || {})[sl] === true;
       const entries = [];   // one entry per rule; small black centre-dot layers fold into the previous entry
       st.layers.filter(l => l['source-layer'] === sl).forEach(l => {
         const p = l.paint || {};
@@ -365,7 +443,7 @@ function buildLegend() {
       entries.forEach(en => {
         const cls = colorClasses(en.l);
         if (!cls) return expanded.push(en);
-        const state = { hidden: new Set(), total: cls.length, orig: {} };
+        const state = { hidden: initialOn ? new Set() : new Set(cls), total: cls.length, orig: {} };
         en.ids.forEach(id => state.orig[id] = (st.layers.find(x => x.id === id) || {}).filter);
         cls.forEach(c => expanded.push({ ...en, cls: c, state }));
       });
@@ -373,7 +451,7 @@ function buildLegend() {
       gl.dataset.sl = sl;
       const gchk = document.createElement('label');
       gchk.className = 'grp lname';
-      gchk.innerHTML = `<input type="checkbox" checked> <span>${esc(sl.replace(/_/g, ' '))}</span><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/></svg>`;
+      gchk.innerHTML = `<input type="checkbox"${initialOn ? ' checked' : ''}> <span>${esc(sl.replace(/_/g, ' '))}</span><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/></svg>`;
       const row = document.createElement('div');
       row.className = 'grprow';
       const tools = layerTools(0, (CONFIG.layerInfo || {})[sl], v => setTransparency(sl, v));
@@ -396,7 +474,7 @@ function buildLegend() {
         const L = CONFIG.legendLabels || {};
         const text = en.cls ? (L[`${en.l.id}|${en.cls.text}`] ?? L[en.cls.text] ?? (en.cls.text === '__null__' ? '(no value)' : en.cls.text))
           : (L[en.l.id] || fmtFilter(en.l.filter) || en.l.id);
-        lab.innerHTML = `${toggleEntry ? '<input type="checkbox" checked>' : ''}${swatch(en.l, en.dot, en.cls && en.cls.color)}<span>${esc(text)}</span>`;
+        lab.innerHTML = `${toggleEntry ? `<input type="checkbox"${initialOn ? ' checked' : ''}>` : ''}${swatch(en.l, en.dot, en.cls && en.cls.color)}<span>${esc(text)}</span>`;
         const cb = lab.querySelector('input');
         if (!allowToggle) lab.classList.add('static');   // key only: the hidden box stays ticked
         if (cb) {
@@ -414,7 +492,10 @@ function buildLegend() {
         if (!toggleClasses) setVis(classIds, on);
       };
       gcb.onchange = () => setAll(gcb.checked);
-      ctl.data[sl] = { set: setAll, el: gl };
+      const ids = [...new Set(st.layers.filter(l => l['source-layer'] === sl).map(l => l.id))];
+      ids.forEach(id => { registerLayerVisibility(id, initialOn); group.layerIds.add(id); });
+      ctl.data[sl] = { set: setAll, theme: on => setThemeVisibility(ids, on), el: gl };
+      if (initialOn) setAll(true);
       if (inView) inViewGroups.push({ sl, gcb, items, note });
       body.appendChild(gl);
     });
@@ -515,6 +596,42 @@ function arcgisTileUrl(w) {
     `&format=png32&transparent=true&f=image` + (ids ? `&layers=show:${ids}` : '');
 }
 const overlayTileUrl = w => w.tiles || (/\/MapServer/i.test(w.url) ? arcgisTileUrl(w) : wmsTileUrl(w));
+let originalStyleIds = null;
+function validRasterEntries(entries, label, reserved = []) {
+  const ids = new Set(reserved);
+  return entries.filter(w => {
+    if (!w || !w.id || (!w.url && !w.tiles)) { console.warn(`${label} skipped: needs id and url (or tiles)`, w); return false; }
+    if (ids.has(w.id)) { console.warn(`${label} skipped: duplicate id`, w.id); return false; }
+    ids.add(w.id);
+    return true;
+  });
+}
+function reservedRasterIds() {
+  if (originalStyleIds) return [...originalStyleIds];
+  const style = map.getStyle();
+  return [...Object.keys(style.sources), ...style.layers.map(l => l.id)];
+}
+function validOverlays() {
+  return validRasterEntries(CONFIG.overlays || [], 'Overlay', reservedRasterIds());
+}
+function validBasemaps() {
+  return validRasterEntries(CONFIG.basemaps || [], 'Basemap', [...reservedRasterIds(), ...validOverlays().map(w => w.id)]);
+}
+function addRasterLayer(w, beforeId) {
+  const tiles = Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)];
+  const source = { type: 'raster', tileSize: w.tileSize || 256, tiles };
+  if (w.attribution) source.attribution = w.attribution;
+  if (Number.isFinite(w.maxzoom)) source.maxzoom = w.maxzoom;
+  map.addSource(w.id, source);
+  const layer = {
+    id: w.id, type: 'raster', source: w.id,
+    layout: { visibility: w.visible === true ? 'visible' : 'none' },
+    paint: { 'raster-opacity': w.opacity ?? 1 }
+  };
+  if (Number.isFinite(w.minzoom)) layer.minzoom = w.minzoom;
+  map.addLayer(layer, beforeId);
+  registerLayerVisibility(w.id, w.visible === true);
+}
 
 function configuredTerrainModels() {
   const t = CONFIG.terrain || {};
@@ -536,15 +653,6 @@ function configuredTerrainModels() {
 }
 const terrainModels = configuredTerrainModels();
 let activeTerrainModel = null, terrainLayerBeforeId = null;
-function validOverlays() {
-  const ids = new Set();
-  return CONFIG.overlays.filter(w => {
-    if (!w.id || (!w.url && !w.tiles)) { console.warn('Overlay skipped: needs id and url (or tiles)', w); return false; }
-    if (ids.has(w.id)) { console.warn('Overlay skipped: duplicate id', w.id); return false; }
-    ids.add(w.id);
-    return true;
-  });
-}
 const hillshadeMax = () => (CONFIG.terrain || {}).hillshadeStrength ?? 0.6;
 let terrainShadeStrength = hillshadeMax();
 function allOverlays() {   // configured overlays + the built-in hillshade
@@ -566,7 +674,8 @@ function buildOverlayLegend() {
   const byGroup = {};
   allOverlays().forEach(w => (byGroup[w.group || 'Overlays'] ||= []).push(w));
   Object.entries(byGroup).forEach(([name, list]) => {
-    const body = addGroup(lg, name);
+    const group = addGroup(lg, name);
+    const body = group.body;
     list.forEach(w => {
       if (w.terrain) {   // 3D on/off, in sync with the menu button
         const d = document.createElement('div');
@@ -575,11 +684,10 @@ function buildOverlayLegend() {
           ? '<label class="trow">Model <select class="terrain-model">' + terrainModels.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('') + '</select></label>'
           : '';
         d.innerHTML = '<div class="grprow"><span class="cspace"></span><label class="lname"><input type="checkbox"> <span>' + esc(w.name) + '</span></label>' +
-          '<button class="tbtn terrain-tools" type="button" title="Terrain exaggeration" aria-label="Terrain exaggeration" aria-expanded="false">' + ICON_SLIDERS + '</button></div>' +
-          (modelSelect ? '<div class="terrain-model-row">' + modelSelect + '</div>' : '') +
-          '<div class="lpanel" hidden><label class="trow">Exaggeration <input class="terrain-exaggeration" type="range" min="1" max="3" step="0.1" value="' + terrainExaggeration + '"><span class="tval"></span></label></div>';
+          '<button class="tbtn terrain-tools" type="button" title="Terrain settings" aria-label="Terrain settings" aria-expanded="false">' + ICON_SLIDERS + '</button></div>' +
+          '<div class="lpanel terrain-panel" hidden>' + (modelSelect ? modelSelect : '') + '<label class="trow">Exaggeration <input class="terrain-exaggeration" type="range" min="1" max="3" step="0.1" value="' + terrainExaggeration + '"><span class="tval"></span></label></div>';
         terrainCb = d.querySelector('input');
-        terrainCb.onchange = () => setTerrain3D(terrainCb.checked);
+        terrainCb.onchange = () => setTerrain3D(terrainCb.checked && !terrainGroupHidden, false);
         const modelPicker = d.querySelector('.terrain-model');
         if (modelPicker) {
           modelPicker.value = activeTerrainModel.id;
@@ -605,10 +713,10 @@ function buildOverlayLegend() {
       }
       const transp = 100 - Math.round((w.opacity ?? 1) * 100);
       const d = document.createElement('div');
-      d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox" ${w.visible === false ? '' : 'checked'}> <span>${esc(w.name || w.id)}</span></label></div>`;
+      d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${w.visible === true ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
       const cb = d.querySelector('input');
-      cb.onchange = () => map.setLayoutProperty(w.id, 'visibility', cb.checked ? 'visible' : 'none');
-      if (!w.global) ctl.ov[w.id] = { def: w.visible !== false, el: d, set: on => { cb.checked = on; cb.onchange(); } };
+      cb.onchange = () => setVis([w.id], cb.checked);
+      if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility([w.id], on), el: d };
       const t = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v));
       const rowEl = d.querySelector('.grprow');
       if (w.legendUrl) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
@@ -618,20 +726,42 @@ function buildOverlayLegend() {
       d.appendChild(t.panel);
       if (w.legendUrl) d.insertAdjacentHTML('beforeend', `<img src="${esc(w.legendUrl)}" alt="" style="max-width:100%;margin:2px 0 4px 20px">`);
       body.appendChild(d);
+      group.layerIds.add(w.id);
     });
+    const hasTerrain = list.some(w => w.terrain);
+    if (hasTerrain) group.onVisibilityChange = visible => {
+      terrainGroupHidden = !visible;
+      if (!visible && terrainOn) setTerrain3D(false, false);
+      else if (visible && terrainCb && terrainCb.checked && !terrainOn) setTerrain3D(true, false);
+    };
+  });
+}
+
+function buildBasemapLegend() {
+  const entries = validBasemaps();
+  if (!entries.length) return;
+  const group = addGroup($('legend'), 'Basemaps');
+  entries.forEach(w => {
+    const d = document.createElement('div');
+    const visible = w.visible === true;
+    d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${visible ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
+    const cb = d.querySelector('input');
+    cb.onchange = () => setVis([w.id], cb.checked);
+    const transp = 100 - Math.round((w.opacity ?? 1) * 100);
+    const tools = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v));
+    d.querySelector('.grprow').appendChild(tools.btn);
+    d.appendChild(tools.panel);
+    group.body.appendChild(d);
+    group.layerIds.add(w.id);
   });
 }
 
 map.on('load', () => {
-  map.addSource('osm', {
-    type: 'raster', tileSize: 256, maxzoom: 19,
-    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  });
-  const first = map.getStyle().layers.find(l => l.type !== 'background');
-  map.addLayer({ id: 'osm', type: 'raster', source: 'osm' }, first && first.id);
-  const firstData = map.getStyle().layers.find(l => l['source-layer']);
-  const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol');
+  const style = map.getStyle();
+  originalStyleIds = new Set([...Object.keys(style.sources), ...style.layers.map(l => l.id)]);
+  const firstData = style.layers.find(l => l['source-layer']);
+  const firstSymbol = style.layers.find(l => l.type === 'symbol');
+  validBasemaps().forEach(w => addRasterLayer(w, (firstData || firstSymbol || {}).id));
   const tc = CONFIG.terrain;
   terrainLayerBeforeId = firstData && firstData.id;
   if (tc && terrainModels.length && window.MaplibreCOGProtocol) {
@@ -649,23 +779,12 @@ map.on('load', () => {
       layout: { visibility: tc.hillshadeVisible ? 'visible' : 'none' },
       paint: { 'hillshade-exaggeration': terrainShadeStrength }
     }, firstData && firstData.id);
+    if (tc.hillshade !== false) registerLayerVisibility('hillshade', tc.hillshadeVisible === true);
   } else $('terrainBtn').style.display = 'none';   // no DTM configured
-  validOverlays().forEach(w => {
-    const tiles = Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)];
-    const source = { type: 'raster', tileSize: w.tileSize || 256, tiles };
-    if (w.attribution) source.attribution = w.attribution;
-    if (Number.isFinite(w.maxzoom)) source.maxzoom = w.maxzoom;
-    map.addSource(w.id, source);
-    const layer = {
-      id: w.id, type: 'raster', source: w.id,
-      layout: { visibility: w.visible === false ? 'none' : 'visible' },
-      paint: { 'raster-opacity': w.opacity ?? 1 }
-    };
-    if (Number.isFinite(w.minzoom)) layer.minzoom = w.minzoom;
-    map.addLayer(layer, firstSymbol && firstSymbol.id);
-  });
+  validOverlays().forEach(w => addRasterLayer(w, firstSymbol && firstSymbol.id));
   buildLegend();
   buildOverlayLegend();
+  buildBasemapLegend();
   setupThemes();
   loadScaleInfo().then(updateScaleState);
   populateSearchLayers();
@@ -911,7 +1030,7 @@ map.on('error', async e => {
   toast('3D / hillshade: ' + (why || `the file is reachable but could not be read${msg ? ' (' + msg + ')' : ''}. It must be a single-band elevation COG in EPSG:3857, tiled, with overviews.`));
   setTimeout(() => dtmChecking = false, 15000);
 });
-let terrainOn = false, terrainCb = null;   // terrainCb = the legend tick box, kept in step with the menu button
+let terrainOn = false, terrainCb = null, terrainGroupHidden = false;   // checkbox selection is preserved when its group is hidden
 let terrainExaggeration = Math.min(10, Math.max(1, Number((CONFIG.terrain || {}).exaggeration) || 1));
 function setTerrainModel(id) {
   const model = terrainModels.find(m => m.id === id);
@@ -933,16 +1052,19 @@ function setTerrainModel(id) {
     else map.addLayer(layer);
   }
 }
-function setTerrain3D(on) {
+function setTerrain3D(on, syncCheckbox = true) {
   const tc = CONFIG.terrain;
   if (!tc || !activeTerrainModel || !map.getSource(activeTerrainModel.sourceId)) { if (terrainCb) terrainCb.checked = false; return toast('3D view needs a DTM configured in CONFIG.terrain.models.'); }
   terrainOn = on;
-  if (terrainCb) terrainCb.checked = on;
+  if (terrainCb && syncCheckbox) terrainCb.checked = on;
   $('terrainBtn').classList.toggle('active', on);
   if (on) { map.setTerrain({ source: activeTerrainModel.sourceId, exaggeration: terrainExaggeration }); map.easeTo({ pitch: tc.pitch ?? 60, duration: 900 }); }
   else { map.setTerrain(null); map.easeTo({ pitch: 0, bearing: 0, duration: 600 }); }   // everything is draped on the surface automatically
 }
-$('terrainBtn').onclick = () => setTerrain3D(!terrainOn);
+map.on('moveend', () => {
+  if (terrainOn && map.getPitch() < 1) setTerrain3D(false);
+});
+$('terrainBtn').onclick = () => { if (!terrainGroupHidden) setTerrain3D(!terrainOn); };
 
 // ---------- Print (map image + key of the layers currently switched on) ----------
 function mapImage() {

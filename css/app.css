@@ -28,6 +28,7 @@
   .dbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 12px; }
   .dbody.form { display: flex; flex-direction: column; gap: 6px; }
   .dbody.form select, .dbody.form input[type=text] { width: 100%; padding: 6px 8px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
+  .about-copy { white-space: pre-wrap; line-height: 1.6; }
   #searchFields { border: 1px solid var(--line); border-radius: 4px; max-height: 200px; overflow: auto; padding: 6px; }
   #searchFields label { display: flex; gap: 6px; padding: 1px 0; }
   .hint { color: var(--muted); font-size: 12px; }
@@ -66,10 +67,17 @@
     appearance: none; -webkit-appearance: none;
     background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231f2a33' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1.500 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 11px center; }
   .lgroup { margin-bottom: 10px; }
-  .lghead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 7px 10px; background: var(--rail-bg); color: #fff; font-size: 13px; font-weight: 600; border-radius: 5px; cursor: pointer; user-select: none; }
+  .lghead { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 0; padding: 0 3px 0 0; background: var(--rail-bg); color: #fff; font-size: 13px; font-weight: 600; border-radius: 5px; user-select: none; }
   .lghead:hover { background: #2b3a46; }
+  .lgcollapse { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1; min-width: 0; padding: 7px 10px; border: 0; background: none; color: inherit; text-align: left; font-weight: inherit; }
+  .lgcollapse:hover { background: transparent; }
+  .lgcollapse span { min-width: 0; overflow-wrap: anywhere; }
   .lghead svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
-  .lgroup.collapsed .lghead svg { transform: rotate(-90deg); }
+  .lgroup.collapsed .lgcollapse svg { transform: rotate(-90deg); }
+  .lgeye { width: 28px; height: 28px; flex: none; padding: 5px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; }
+  .lgeye:hover, .lgeye[aria-pressed=true] { background: rgba(255,255,255,.16); }
+  .lghead .lgeye svg { width: 17px; height: 17px; }
+  .lgroup.group-hidden .lghead { opacity: .72; }
   .lgroup.collapsed .lgbody { display: none; }
   .lgbody { padding-top: 4px; }
   #legend label { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
@@ -116,6 +124,9 @@
   .lpanel select, .terrain-model-row select { flex: 1; min-width: 0; padding: 3px 6px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
   .lpanel .tval { width: 32px; text-align: right; }
   .lpanel a { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; color: #234b6b; }
+  .terrain-panel .trow + .trow { margin-top: 6px; }
+  .maplibregl-ctrl-zoomall { display: grid; place-items: center; }
+  .maplibregl-ctrl-zoomall svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
   /* ---- location search ---- */
   #geo { position: absolute; left: 8px; top: 8px; z-index: 6; width: min(360px, calc(100% - 64px)); }

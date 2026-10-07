@@ -320,7 +320,7 @@ function infoTool(meta) {
 }
 
 // Small per-layer panel: transparency slider (+ optional plain info link). Returns { btn, panel, infoBtn, infoPanel }.
-function layerTools(transp, info, onChange) {
+function layerTools(transp, info, onChange, extraHtml = '') {
   const meta = info && typeof info === 'object' && info.metadata ? info : null;
   const link = typeof info === 'string' ? info : meta && meta.link;
   const btn = document.createElement('button');
@@ -330,6 +330,7 @@ function layerTools(transp, info, onChange) {
   const panel = document.createElement('div');
   panel.className = 'lpanel'; panel.hidden = true;
   panel.innerHTML = `<label class="trow">Transparency <input type="range" min="0" max="100" value="${transp}"><span class="tval">${transp}%</span></label>` +
+    extraHtml +
     (isUrl(link) ? `<a href="${esc(link.trim())}" target="_blank" rel="noopener">${ICON_INFO}About this layer</a>` : '');
   const rng = panel.querySelector('input'), val = panel.querySelector('.tval');
   rng.oninput = () => { val.textContent = rng.value + '%'; onChange(Number(rng.value)); };
@@ -690,6 +691,65 @@ const contourDemSources = new Map();
 let contourDemSource = null, contourGeneration = 0;
 const hillshadeMax = () => (CONFIG.terrain || {}).hillshadeStrength ?? 0.6;
 let terrainShadeStrength = hillshadeMax();
+const HILLSHADE_METHODS = [
+  ['standard', 'Standard'], ['basic', 'Basic'], ['combined', 'Combined'],
+  ['igor', 'Igor'], ['multidirectional', 'Multidirectional']
+];
+const HILLSHADE_STYLE_DEFAULTS = {
+  method: 'standard', direction: 335, altitude: 45, anchor: 'viewport',
+  shadowColor: '#000000', highlightColor: '#ffffff', accentColor: '#000000'
+};
+const hillshadeStyle = { ...HILLSHADE_STYLE_DEFAULTS, ...((CONFIG.terrain || {}).hillshadeStyle || {}) };
+function hillshadePaint() {
+  return {
+    'hillshade-exaggeration': terrainShadeStrength,
+    'hillshade-method': hillshadeStyle.method,
+    'hillshade-illumination-direction': hillshadeStyle.direction,
+    'hillshade-illumination-altitude': hillshadeStyle.altitude,
+    'hillshade-illumination-anchor': hillshadeStyle.anchor,
+    'hillshade-shadow-color': hillshadeStyle.shadowColor,
+    'hillshade-highlight-color': hillshadeStyle.highlightColor,
+    'hillshade-accent-color': hillshadeStyle.accentColor
+  };
+}
+function hillshadeControlsMarkup() {
+  return '<div class="hillshade-settings">' +
+    '<label class="trow">Method <select class="hs-method">' + HILLSHADE_METHODS.map(([value, label]) =>
+      `<option value="${value}"${hillshadeStyle.method === value ? ' selected' : ''}>${label}</option>`).join('') + '</select></label>' +
+    '<label class="trow">Light direction <input class="hs-direction" type="range" min="0" max="359" step="1" value="' + hillshadeStyle.direction + '"><output class="hs-direction-value">' + hillshadeStyle.direction + '°</output></label>' +
+    '<label class="trow">Light altitude <input class="hs-altitude" type="range" min="0" max="90" step="1" value="' + hillshadeStyle.altitude + '"><output class="hs-altitude-value">' + hillshadeStyle.altitude + '°</output></label>' +
+    '<label class="trow">Illumination <select class="hs-anchor"><option value="viewport">Viewport</option><option value="map">Map north</option></select></label>' +
+    '<div class="hillshade-colors">' +
+      '<label>Shadow <input class="hs-shadow" type="color" value="' + esc(hillshadeStyle.shadowColor) + '"></label>' +
+      '<label>Highlight <input class="hs-highlight" type="color" value="' + esc(hillshadeStyle.highlightColor) + '"></label>' +
+      '<label>Accent <input class="hs-accent" type="color" value="' + esc(hillshadeStyle.accentColor) + '"></label>' +
+    '</div></div>';
+}
+function bindHillshadeControls(panel) {
+  const paintProps = {
+    method: 'hillshade-method', direction: 'hillshade-illumination-direction',
+    altitude: 'hillshade-illumination-altitude', anchor: 'hillshade-illumination-anchor',
+    shadowColor: 'hillshade-shadow-color', highlightColor: 'hillshade-highlight-color', accentColor: 'hillshade-accent-color'
+  };
+  const setStyle = (key, value) => {
+    hillshadeStyle[key] = value;
+    if (map.getLayer('hillshade')) map.setPaintProperty('hillshade', paintProps[key], value);
+  };
+  const method = panel.querySelector('.hs-method');
+  method.value = hillshadeStyle.method;
+  method.onchange = () => setStyle('method', method.value);
+  const anchor = panel.querySelector('.hs-anchor');
+  anchor.value = hillshadeStyle.anchor;
+  anchor.onchange = () => setStyle('anchor', anchor.value);
+  const direction = panel.querySelector('.hs-direction'), directionValue = panel.querySelector('.hs-direction-value');
+  direction.oninput = () => { directionValue.value = direction.value + '°'; setStyle('direction', Number(direction.value)); };
+  const altitude = panel.querySelector('.hs-altitude'), altitudeValue = panel.querySelector('.hs-altitude-value');
+  altitude.oninput = () => { altitudeValue.value = altitude.value + '°'; setStyle('altitude', Number(altitude.value)); };
+  [['shadowColor', '.hs-shadow'], ['highlightColor', '.hs-highlight'], ['accentColor', '.hs-accent']].forEach(([key, selector]) => {
+    const input = panel.querySelector(selector);
+    input.oninput = () => setStyle(key, input.value);
+  });
+}
 function allOverlays() {   // configured overlays + the built-in hillshade
   const list = validOverlays(), t = CONFIG.terrain;
   if (t && terrainModels.length && t.hillshade !== false && window.MaplibreCOGProtocol)
@@ -1024,13 +1084,15 @@ function buildOverlayLegend() {
         setVis(w.layerIds || [w.id], cb.checked);
       };
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility([w.id], on), el: d };
-      const t = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v));
+      const t = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v),
+        w.hillshade ? hillshadeControlsMarkup() : '');
       const rowEl = d.querySelector('.grprow');
       if (w.legendUrl || arcgisLegendRequest(w)) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
       if (t.infoBtn) rowEl.appendChild(t.infoBtn);
       rowEl.appendChild(t.btn);
       if (t.infoPanel) d.appendChild(t.infoPanel);
       d.appendChild(t.panel);
+      if (w.hillshade) bindHillshadeControls(t.panel);
       if (w.legendUrl) d.insertAdjacentHTML('beforeend', `<img src="${esc(w.legendUrl)}" alt="" style="max-width:100%;margin:2px 0 4px 20px">`);
       else renderArcgisLegend(d, w);
       body.appendChild(d);
@@ -1085,7 +1147,7 @@ map.on('load', () => {
     if (tc.hillshade !== false) map.addLayer({
       id: 'hillshade', type: 'hillshade', source: activeTerrainModel.sourceId,
       layout: { visibility: tc.hillshadeVisible ? 'visible' : 'none' },
-      paint: { 'hillshade-exaggeration': terrainShadeStrength }
+      paint: hillshadePaint()
     }, firstData && firstData.id);
     if (tc.hillshade !== false) registerLayerVisibility('hillshade', tc.hillshadeVisible === true);
     setupTerrainContours(activeTerrainModel, firstData && firstData.id);
@@ -1358,7 +1420,7 @@ function setTerrainModel(id) {
     const layer = {
       id: 'hillshade', type: 'hillshade', source: model.sourceId,
       layout: { visibility: hillshadeVisible ? 'visible' : 'none' },
-      paint: { 'hillshade-exaggeration': terrainShadeStrength }
+      paint: hillshadePaint()
     };
     if (terrainLayerBeforeId && map.getLayer(terrainLayerBeforeId)) map.addLayer(layer, terrainLayerBeforeId);
     else map.addLayer(layer);

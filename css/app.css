@@ -132,6 +132,14 @@
   .lpanel .tval { width: 32px; text-align: right; }
   .lpanel a { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; color: #234b6b; }
   .terrain-panel .trow + .trow { margin-top: 6px; }
+  .hillshade-settings { display: grid; gap: 7px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  #legend .hillshade-settings .trow { display: flex; align-items: center; gap: 8px; cursor: default; }
+  .hillshade-settings .trow select { flex: 1; min-width: 0; padding: 3px 6px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
+  .hillshade-settings .trow input[type=range] { flex: 1; min-width: 0; }
+  .hillshade-settings output { width: 34px; color: var(--muted); font-size: 11px; text-align: right; }
+  .hillshade-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #legend .hillshade-colors label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; color: var(--muted); font-size: 11px; cursor: default; }
+  .hillshade-colors input[type=color] { width: 100%; height: 27px; min-width: 0; padding: 2px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
   .maplibregl-ctrl-zoomall { display: grid; place-items: center; }
   .maplibregl-ctrl-zoomall svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 

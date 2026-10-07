@@ -171,6 +171,10 @@ window.CONFIG = {
     hillshade: true,           // add a "Hillshade (DTM)" layer to the legend (id 'hillshade', usable in themes)
     hillshadeVisible: true,   // start with the hillshade switched on?
     hillshadeStrength: 0.6,    // 0-1, shading strength at 0% transparency
+    hillshadeStyle: {
+      method: 'standard', direction: 315, altitude: 45, anchor: 'viewport',
+      shadowColor: '#000000', highlightColor: '#ffffff', accentColor: '#000000'
+    },
     contours: {
       visible: true,
       opacity: 0.8,

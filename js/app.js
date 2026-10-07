@@ -5,7 +5,7 @@ proj4.defs('EPSG:29902',
 maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
 if (window.MaplibreCOGProtocol) maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
 const $ = id => document.getElementById(id);
-const map = new maplibregl.Map({ container: 'map', style: CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
+const map = new maplibregl.Map({ container: 'map', style: window.MAP_STYLE || CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
 document.querySelectorAll('#aboutPage .lgcollapse').forEach(b => b.onclick = () => {
   b.setAttribute('aria-expanded', String(!b.closest('.lgroup').classList.toggle('collapsed')));
 });
@@ -412,11 +412,12 @@ function setupThemes() {
   sel.innerHTML = list.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
   const apply = i => {
     const t = list[i];
-    const all = !t.layers && !t.overlays;
-    themeLayers = all ? null : (t.layers || []);
+    const all = !t.layers && !t.overlays && !t.datasets;
+    const themeNames = [...(t.layers || []), ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || [])];
+    themeLayers = all ? null : themeNames;
     // Theme membership gates rendering without changing the user's checkbox state.
     Object.entries(ctl.data).forEach(([sl, o]) => {
-      const inTheme = all || (t.layers || []).includes(sl);
+      const inTheme = all || themeNames.includes(sl);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
     Object.entries(ctl.ov).forEach(([id, o]) => {

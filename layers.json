@@ -1,0 +1,261 @@
+{
+  "version": 8,
+  "name": "geol2",
+  "sources": {
+    "mapsplat": {
+      "type": "vector",
+      "url": "pmtiles://data/layers.pmtiles"
+    }
+  },
+  "glyphs": "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "Site_Reports_rule0",
+      "type": "fill",
+      "source": "mapsplat",
+      "source-layer": "Site_Reports",
+      "paint": {
+        "fill-color": "#ff7f00",
+        "fill-opacity": 0.25
+      },
+      "minzoom": 12.31
+    },
+    {
+      "id": "Site_Reports_labels",
+      "type": "symbol",
+      "source": "mapsplat",
+      "source-layer": "Site_Reports",
+      "layout": {
+        "visibility": "visible",
+        "text-field": [
+          "to-string",
+          [
+            "get",
+            "ID"
+          ]
+        ],
+        "text-font": [
+          "Noto Sans Regular"
+        ],
+        "text-size": 13.3,
+        "text-allow-overlap": false,
+        "text-ignore-placement": false,
+        "text-optional": true,
+        "text-padding": 2,
+        "text-justify": "center",
+        "symbol-placement": "point",
+        "text-anchor": "center"
+      },
+      "paint": {
+        "text-color": "#323232",
+        "text-halo-color": "#fafafa",
+        "text-halo-width": 3.78
+      },
+      "minzoom": 12.31
+    },
+    {
+      "id": "Boreholes_rule0",
+      "type": "circle",
+      "source": "mapsplat",
+      "source-layer": "Boreholes",
+      "paint": {
+        "circle-color": "#00ff00",
+        "circle-opacity": 0.7,
+        "circle-radius": 4.4071146,
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 0.7,
+        "circle-stroke-opacity": 1.0
+      },
+      "filter": [
+        "<=",
+        [
+          "get",
+          "TOTDEPTH"
+        ],
+        5.0
+      ],
+      "minzoom": 12.31
+    },
+
+    {
+      "id": "Boreholes_rule2_3",
+      "type": "circle",
+      "source": "mapsplat",
+      "source-layer": "Boreholes",
+      "paint": {
+        "circle-color": "#0000ff",
+        "circle-opacity": 0.7,
+        "circle-radius": 4.4071146,
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 0.7,
+        "circle-stroke-opacity": 1.0
+      },
+      "minzoom": 12.31,
+      "filter": [
+        "all",
+        [
+          ">",
+          [
+            "get",
+            "TOTDEPTH"
+          ],
+          5
+        ],
+        [
+          "<=",
+          [
+            "get",
+            "TOTDEPTH"
+          ],
+          10
+        ]
+      ]
+    },
+   
+    {
+      "id": "Boreholes_rule4_5",
+      "type": "circle",
+      "source": "mapsplat",
+      "source-layer": "Boreholes",
+      "paint": {
+        "circle-color": "#ffbebe",
+        "circle-opacity": 0.7,
+        "circle-radius": 5.3864734,
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 0.7,
+        "circle-stroke-opacity": 1.0
+      },
+      "minzoom": 12.31,
+      "filter": [
+        "all",
+        [
+          ">",
+          [
+            "get",
+            "TOTDEPTH"
+          ],
+          10
+        ],
+        [
+          "<=",
+          [
+            "get",
+            "TOTDEPTH"
+          ],
+          20
+        ]
+      ]
+    },
+    {
+      "id": "Boreholes_rule6_7",
+      "type": "circle",
+      "source": "mapsplat",
+      "source-layer": "Boreholes",
+      "paint": {
+        "circle-color": "#ff0000",
+        "circle-opacity": 0.7,
+        "circle-radius": 5.876152800000001,
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 0.7,
+        "circle-stroke-opacity": 1.0
+      },
+      "minzoom": 12.31,
+      "filter": [
+        "all",
+        [
+          ">",
+          [
+            "get",
+            "TOTDEPTH"
+          ],
+          20
+        ],
+        [
+          "<=",
+          [
+            "get",
+            "TOTDEPTH"
+          ],
+          100
+        ]
+      ]
+    },
+    {
+      "id": "Boreholes_rule8_9",
+      "type": "circle",
+      "source": "mapsplat",
+      "source-layer": "Boreholes",
+      "paint": {
+        "circle-color": "#ff00c5",
+        "circle-opacity": 0.7,
+        "circle-radius": 6.855485,
+        "circle-stroke-color": "#000000",
+        "circle-stroke-width": 0.7,
+        "circle-stroke-opacity": 1.0
+      },
+      "filter": [
+        ">",
+        [
+          "get",
+          "TOTDEPTH"
+        ],
+        100
+      ],
+      "minzoom": 12.31
+    },
+    {
+      "id": "Boreholes_labels",
+      "type": "symbol",
+      "source": "mapsplat",
+      "source-layer": "Boreholes",
+      "layout": {
+        "visibility": "visible",
+        "text-field": [
+          "to-string",
+          [
+            "get",
+            "Filename"
+          ]
+        ],
+        "text-font": [
+          "Noto Sans Regular"
+        ],
+        "text-size": 13.3,
+        "text-allow-overlap": false,
+        "text-ignore-placement": false,
+        "text-optional": true,
+        "text-padding": 2,
+        "text-justify": "center",
+        "text-variable-anchor": [
+          "top",
+          "bottom",
+          "left",
+          "right",
+          "top-left",
+          "top-right",
+          "bottom-left",
+          "bottom-right"
+        ]
+      },
+      "paint": {
+        "text-color": "#323232",
+        "text-halo-color": "#fafafa",
+        "text-halo-width": 3.78
+      },
+      "minzoom": 12.31
+    }
+  ],
+  "metadata": {
+    "mapsplat:legend-groups": [
+      {
+        "name": "Geotechnical",
+        "layers": [
+          "Site_Reports",
+          "Boreholes"
+        ]
+      }
+    ],
+    "mapsplat:version": "0.43.1",
+    "mapsplat:project": "geol2"
+  }
+}

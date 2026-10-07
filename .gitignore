@@ -1,2 +1,3 @@
 *.tif
 *.pmtiles
+!data/layers.pmtiles

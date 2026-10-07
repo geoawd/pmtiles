@@ -1,3 +1,6 @@
+import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.mjs';
+
+window.maplibregl = maplibregl;
 const CONFIG = window.CONFIG;
 proj4.defs('EPSG:29902',
   '+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 ' +

@@ -38,6 +38,13 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const cell = v => v === null || v === undefined ? '' :
   isLink(v) ? `<a href="${esc(v.trim())}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v);
 
+if (CONFIG.showZoom) {
+  const zoomEl = $('zoomLevel');
+  zoomEl.hidden = false;
+  const showZoom = () => zoomEl.textContent = 'Zoom ' + map.getZoom().toFixed(1);
+  map.on('zoom', showZoom);
+  showZoom();
+}
 map.on('mousemove', e => {
   const [x, y] = proj4('EPSG:4326', 'EPSG:29902', [e.lngLat.lng, e.lngLat.lat]);
   $('coords').textContent = `Irish Grid  E ${x.toFixed(0)}  N ${y.toFixed(0)}`;
@@ -321,6 +328,8 @@ function infoTool(meta) {
   return { btn, panel };
 }
 
+// Layer's own info wins, then the id's entry in CONFIG.layerInfo, then its group's entry in CONFIG.groupInfo.
+const infoFor = (id, group, own) => own ?? (CONFIG.layerInfo || {})[id] ?? (CONFIG.groupInfo || {})[group];
 // Small per-layer panel: transparency slider (+ optional plain info link). Returns { btn, panel, infoBtn, infoPanel }.
 function layerTools(transp, info, onChange, extraHtml = '') {
   const meta = info && typeof info === 'object' && info.metadata ? info : null;
@@ -461,7 +470,7 @@ function buildLegend() {
       gchk.innerHTML = `<input type="checkbox"${initialOn ? ' checked' : ''}> <span>${esc(sl.replace(/_/g, ' '))}</span><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/></svg>`;
       const row = document.createElement('div');
       row.className = 'grprow';
-      const tools = layerTools(0, (CONFIG.layerInfo || {})[sl], v => setTransparency(sl, v));
+      const tools = layerTools(0, infoFor(sl, g.name), v => setTransparency(sl, v));
       row.append(collapser(gl, CONFIG.collapseLayers), gchk, ...(tools.infoBtn ? [tools.infoBtn] : []), tools.btn);
       gl.append(row, ...(tools.infoPanel ? [tools.infoPanel] : []), tools.panel);
       const boxes = [];
@@ -1103,7 +1112,7 @@ function buildOverlayLegend() {
         setVis(w.layerIds || [w.id], cb.checked);
       };
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility([w.id], on), el: d };
-      const t = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v),
+      const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
         w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : '');
       const rowEl = d.querySelector('.grprow');
       if (w.legendUrl || arcgisLegendRequest(w)) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
@@ -1138,7 +1147,7 @@ function buildBasemapLegend() {
     const cb = d.querySelector('input');
     cb.onchange = () => setVis([w.id], cb.checked);
     const transp = 100 - Math.round((w.opacity ?? 1) * 100);
-    const tools = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v));
+    const tools = layerTools(transp, infoFor(w.id, 'Basemaps', w.info), v => setOverlayTransparency(w, v));
     d.querySelector('.grprow').appendChild(tools.btn);
     d.appendChild(tools.panel);
     group.body.appendChild(d);

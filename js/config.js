@@ -2,6 +2,7 @@
 // Type is detected from the url (ArcGIS MapServer or WMS) or from `tiles` (XYZ). Everything else is optional.
 window.CONFIG = {
   title: 'MAPLIBRE DEMO',        // heading on printouts
+  showZoom: true,             // development helper: show the current zoom level beside the grid reference
   styleUrl: 'style.json',
   queryLayers: null,          // null = auto-detect every layer on a vector source in your style; or list ids
   basemaps: [
@@ -108,7 +109,12 @@ window.CONFIG = {
   // The metadata server must allow cross-origin (CORS) requests from the site hosting this page.
   layerInfo: {
     Site_Reports: { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/2bd4d1e5-9401-4da9-9566-f481b84fa110?f=json' },
-    Boreholes: {metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/09757268-929d-4203-b1fc-56d9391e4688'} ,
+    Boreholes: {metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/09757268-929d-4203-b1fc-56d9391e4688?f=json'} ,
+  },
+  // Group-level information: key = group name exactly as shown in the legend (overlay `group`, or a vector legend group).
+  // Same formats as layerInfo. Every layer in the group shows it unless the layer has its own entry in layerInfo (or `info`).
+  groupInfo: {
+    'Geophysics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
   },
   // What to show from the record, in this order. Each item:
   //   label  – heading shown above the value (leave out for none)

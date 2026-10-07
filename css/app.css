@@ -38,7 +38,9 @@
   #main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   #mapwrap { flex: 1; min-height: 0; position: relative; }
   #map { position: absolute; inset: 0; }
-  #coords { position: absolute; left: 8px; bottom: 34px; z-index: 5; background: rgba(255,255,255,.92); padding: 3px 8px; border-radius: 3px; font-size: 12px; pointer-events: none; }
+  #mapinfo { position: absolute; left: 8px; bottom: 34px; z-index: 5; display: flex; gap: 4px; pointer-events: none; }
+  #zoomLevel, #coords { background: rgba(255,255,255,.92); padding: 3px 8px; border-radius: 3px; font-size: 12px; }
+  #zoomLevel[hidden] { display: none; }
   #selbox { position: absolute; border: 2px dashed var(--ac); background: rgba(31,42,51,.12); pointer-events: none; display: none; }
   #toast { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 7; display: none; max-width: 90%; background: var(--rail-bg); color: #fff; padding: 8px 14px; border-radius: 6px; box-shadow: 0 1px 6px rgba(0,0,0,.4); }
   #boxTip { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); z-index: 5; background: var(--ac); color: #fff; padding: 5px 12px; border-radius: 14px; display: none; }

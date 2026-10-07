@@ -172,7 +172,7 @@ window.CONFIG = {
     defaultModel: '10m', // selected initially; defaults to the first model
     exaggeration: 1.0,         // vertical exaggeration in the 3D view
     pitch: 60,                 // tilt when 3D is switched on (0-80)
-    tileSize: 512,             // the COG's internal tile size (256 or 512)
+    tileSize: 256,             // the COG's internal tile size (256 or 512)
     hillshade: true,           // add a "Hillshade (DTM)" layer to the legend (id 'hillshade', usable in themes)
     hillshadeVisible: true,   // start with the hillshade switched on?
     hillshadeStrength: 0.6,    // 0-1, shading strength at 0% transparency

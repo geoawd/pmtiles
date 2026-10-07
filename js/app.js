@@ -1456,15 +1456,18 @@ function setTerrainModel(id) {
   }
   setupTerrainContours(model, terrainLayerBeforeId);
 }
-function setTerrain3D(on, syncCheckbox = true) {
+function setTerrain3D(on, syncCheckbox = true, tilt = true) {
   const tc = CONFIG.terrain;
   if (!tc || !activeTerrainModel || !map.getSource(activeTerrainModel.sourceId)) { if (terrainCb) terrainCb.checked = false; return toast('3D view needs a DTM configured in CONFIG.terrain.models.'); }
   terrainOn = on;
   if (terrainCb && syncCheckbox) terrainCb.checked = on;
   $('terrainBtn').classList.toggle('active', on);
-  if (on) { map.setTerrain({ source: activeTerrainModel.sourceId, exaggeration: terrainExaggeration }); map.easeTo({ pitch: tc.pitch ?? 60, duration: 900 }); }
+  if (on) { map.setTerrain({ source: activeTerrainModel.sourceId, exaggeration: terrainExaggeration }); if (tilt) map.easeTo({ pitch: tc.pitch ?? 60, duration: 900 }); }
   else { map.setTerrain(null); map.easeTo({ pitch: 0, bearing: 0, duration: 600 }); }   // everything is draped on the surface automatically
 }
+map.on('pitchstart', e => {   // user tilting (right-drag / two-finger swipe) switches 3D on
+  if (e.originalEvent && !terrainOn && !terrainGroupHidden && activeTerrainModel && map.getSource(activeTerrainModel.sourceId)) setTerrain3D(true, true, false);
+});
 map.on('moveend', () => {
   if (terrainOn && map.getPitch() < 1) setTerrain3D(false);
 });

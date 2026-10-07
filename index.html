@@ -22,7 +22,7 @@
     <button id="printBtn" title="Print map and key" aria-label="Print map and key">
       <svg viewBox="0 0 24 24"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="1.500"/><path d="M7 14h10v6H7z"/></svg></button>
     <div class="gap"></div>
-    <button data-tool="about" title="About" aria-label="About">
+    <button data-tool="about" title="Information" aria-label="Information">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></button>
   </nav>
   <div id="drawer">
@@ -42,8 +42,30 @@
       </div>
     </section>
     <section id="aboutPage" class="dpage">
-      <div class="dhead"><span>About</span><button class="dclose" aria-label="Close">&times;</button></div>
-      <div class="dbody about-copy" id="aboutContent"></div>
+      <div class="dhead"><span>Information</span><button class="dclose" aria-label="Close">&times;</button></div>
+      <div class="dbody">
+        <!-- Edit the headings and text below. Add more sections by copying a <section class="lgroup"> block. -->
+        <section class="lgroup">
+          <h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>Help</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></h4>
+          <div class="lgbody info-copy">
+            <p>Use the Legend to switch layers on and off and adjust their transparency.</p>
+            <p>Use Search to find features in the current map view e.g. searching in an attribute table.</p>
+            <p>Use the box tool to select features by dragging a rectangle on the map.</p>
+          </div>
+        </section>
+        <section class="lgroup">
+          <h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>About</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></h4>
+          <div class="lgbody info-copy">
+            <p>An unofficial, experimental map viewer for Geological Survey of Northern Ireland datasets. Data is derived from Open Data or consumed via OGL services.</p>
+          </div>
+        </section>
+         <section class="lgroup">
+          <h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>Copyright</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></h4>
+          <div class="lgbody info-copy">
+            <p>Data is derived from data available under the OGLV3.</p>
+          </div>
+        </section>
+      </div>
     </section>
   </div>
 </div>

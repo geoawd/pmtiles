@@ -28,7 +28,8 @@
   .dbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 12px; }
   .dbody.form { display: flex; flex-direction: column; gap: 6px; }
   .dbody.form select, .dbody.form input[type=text] { width: 100%; padding: 6px 8px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
-  .about-copy { white-space: pre-wrap; line-height: 1.6; }
+  .info-copy { line-height: 1.6; }
+  .info-copy p { margin: 0 0 8px; }
   #searchFields { border: 1px solid var(--line); border-radius: 4px; max-height: 200px; overflow: auto; padding: 6px; }
   #searchFields label { display: flex; gap: 6px; padding: 1px 0; }
   .hint { color: var(--muted); font-size: 12px; }

@@ -6,7 +6,9 @@ maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
 if (window.MaplibreCOGProtocol) maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
 const $ = id => document.getElementById(id);
 const map = new maplibregl.Map({ container: 'map', style: CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
-$('aboutContent').textContent = typeof CONFIG.about === 'string' ? CONFIG.about : '';
+document.querySelectorAll('#aboutPage .lgcollapse').forEach(b => b.onclick = () => {
+  b.setAttribute('aria-expanded', String(!b.closest('.lgroup').classList.toggle('collapsed')));
+});
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
 const boundsValid = Array.isArray(CONFIG.bounds) && CONFIG.bounds.length === 2 && CONFIG.bounds.every(p =>
   Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)) &&

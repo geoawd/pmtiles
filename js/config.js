@@ -11,7 +11,6 @@ window.CONFIG = {
       maxzoom: 19, attribution: '&copy; ESRI', opacity: 1, visible: false }
   ],
 
-  about: 'An unofficial, experimental map viewer for Geological Survey of Northern Ireland datasets. Data is derived from Open Data or consumed via OGL services.',
   bounds: [[-8.5, 53.5], [-5.0, 55.6]], // project extent: southwest and northeast [longitude, latitude]
   layerDefaults: {},          // vector source-layer names enabled at startup, e.g. { Boreholes: true }
   overlays: [

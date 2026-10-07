@@ -176,11 +176,16 @@ window.CONFIG = {
       shadowColor: '#000000', highlightColor: '#ffffff', accentColor: '#000000'
     },
     contours: {
-      visible: true,
-      opacity: 0.8,
+      visible: false,
+      opacity: 0.5,
+      colors: { minor: '#808384', major: '#30383b' },
       thresholds: {
-        8: [100, 500], 9: [100, 500], 10: [100, 500], 11: [100, 500],
-        12: [50, 250], 13: [20, 100], 14: [10, 50], 15: [10, 50], 16: [5, 25]
+        11: [100, 500],
+        12: [50, 500], 
+        13: [10, 100], 
+        14: [10, 100], 
+        15: [10, 100], 
+        16: [1, 10]
       }
     },
     allThemes: true            // hillshade + 3D tick boxes stay available in every theme (false = hillshade follows themes' `overlays`)

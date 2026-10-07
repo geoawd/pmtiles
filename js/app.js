@@ -685,7 +685,9 @@ const CONTOUR_SOURCE_ID = 'dtm-contour-source';
 const CONTOUR_LINE_ID = 'dtm-contour-lines';
 const CONTOUR_LABEL_ID = 'dtm-contour-labels';
 const contourSettings = (CONFIG.terrain || {}).contours;
-let contoursVisible = contourSettings !== false && (!contourSettings || contourSettings.visible !== false);
+let contoursVisible = !!contourSettings && contourSettings.visible === true;
+const contourColors = { minor: '#30383b', major: '#30383b', ...(contourSettings && contourSettings.colors || {}) };
+const contourLineColor = () => ['match', ['get', 'level'], 1, contourColors.major, contourColors.minor];
 let contourOpacity = contourSettings && typeof contourSettings === 'object' ? contourSettings.opacity ?? 0.8 : 0.8;
 const contourDemSources = new Map();
 let contourDemSource = null, contourGeneration = 0;
@@ -750,12 +752,27 @@ function bindHillshadeControls(panel) {
     input.oninput = () => setStyle(key, input.value);
   });
 }
+function contourControlsMarkup() {
+  return '<div class="hillshade-colors">' +
+    '<label>Minor <input class="ct-minor" type="color" value="' + esc(contourColors.minor) + '"></label>' +
+    '<label>Major <input class="ct-major" type="color" value="' + esc(contourColors.major) + '"></label></div>';
+}
+function bindContourControls(panel) {
+  const apply = () => {
+    if (map.getLayer(CONTOUR_LINE_ID)) map.setPaintProperty(CONTOUR_LINE_ID, 'line-color', contourLineColor());
+    if (map.getLayer(CONTOUR_LABEL_ID)) map.setPaintProperty(CONTOUR_LABEL_ID, 'text-color', contourColors.major);
+  };
+  [['minor', '.ct-minor'], ['major', '.ct-major']].forEach(([key, selector]) => {
+    const input = panel.querySelector(selector);
+    input.oninput = () => { contourColors[key] = input.value; apply(); };
+  });
+}
 function allOverlays() {   // configured overlays + the built-in hillshade
   const list = validOverlays(), t = CONFIG.terrain;
-  if (t && terrainModels.length && t.hillshade !== false && window.MaplibreCOGProtocol)
-    list.push({ id: 'hillshade', name: t.hillshadeName || 'Hillshade (DTM)', group: t.group || 'Terrain', hillshade: true, builtin: true, global: t.allThemes !== false, visible: !!t.hillshadeVisible, opacity: 1, info: t.info });
   if (t && terrainModels.length && t.contours !== false && window.MaplibreCOGProtocol && window.mlcontour)
     list.push({ id: CONTOUR_LINE_ID, layerIds: [CONTOUR_LINE_ID, CONTOUR_LABEL_ID], name: contourSettings?.name || 'Contours', group: t.group || 'Terrain', contours: true, builtin: true, global: true, visible: contoursVisible, opacity: contourOpacity, info: contourSettings?.info });
+  if (t && terrainModels.length && t.hillshade !== false && window.MaplibreCOGProtocol)
+    list.push({ id: 'hillshade', name: t.hillshadeName || 'Hillshade (DTM)', group: t.group || 'Terrain', hillshade: true, builtin: true, global: t.allThemes !== false, visible: !!t.hillshadeVisible, opacity: 1, info: t.info });
   if (t && terrainModels.length && window.MaplibreCOGProtocol)
     list.push({ id: 'terrain3d', name: '3D terrain', group: t.group || 'Terrain', terrain: true, builtin: true, global: true });
   return list;
@@ -818,7 +835,7 @@ async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
     map.addLayer({
       id: CONTOUR_LINE_ID, type: 'line', source: CONTOUR_SOURCE_ID, 'source-layer': 'contours',
       layout: { visibility: contoursVisible ? 'visible' : 'none' },
-      paint: { 'line-color': '#30383b', 'line-opacity': contourOpacity,
+      paint: { 'line-color': contourLineColor(), 'line-opacity': contourOpacity,
         'line-width': ['match', ['get', 'level'], 1, 1.2, 0.7] }
     }, before);
     map.addLayer({
@@ -827,7 +844,7 @@ async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
       layout: { visibility: contoursVisible ? 'visible' : 'none', 'symbol-placement': 'line',
         'text-size': 10, 'text-font': ['Noto Sans Regular'],
         'text-field': ['concat', ['number-format', ['get', 'ele'], {}], ' m'] },
-      paint: { 'text-color': '#30383b', 'text-opacity': contourOpacity,
+      paint: { 'text-color': contourColors.major, 'text-opacity': contourOpacity,
         'text-halo-color': '#fff', 'text-halo-width': 1.2 }
     }, before);
     contourDemSource = source;
@@ -1085,7 +1102,7 @@ function buildOverlayLegend() {
       };
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility([w.id], on), el: d };
       const t = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v),
-        w.hillshade ? hillshadeControlsMarkup() : '');
+        w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : '');
       const rowEl = d.querySelector('.grprow');
       if (w.legendUrl || arcgisLegendRequest(w)) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
       if (t.infoBtn) rowEl.appendChild(t.infoBtn);
@@ -1093,6 +1110,7 @@ function buildOverlayLegend() {
       if (t.infoPanel) d.appendChild(t.infoPanel);
       d.appendChild(t.panel);
       if (w.hillshade) bindHillshadeControls(t.panel);
+      if (w.contours) bindContourControls(t.panel);
       if (w.legendUrl) d.insertAdjacentHTML('beforeend', `<img src="${esc(w.legendUrl)}" alt="" style="max-width:100%;margin:2px 0 4px 20px">`);
       else renderArcgisLegend(d, w);
       body.appendChild(d);

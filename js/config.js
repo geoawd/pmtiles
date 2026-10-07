@@ -171,6 +171,14 @@ window.CONFIG = {
     hillshade: true,           // add a "Hillshade (DTM)" layer to the legend (id 'hillshade', usable in themes)
     hillshadeVisible: true,   // start with the hillshade switched on?
     hillshadeStrength: 0.6,    // 0-1, shading strength at 0% transparency
+    contours: {
+      visible: true,
+      opacity: 0.8,
+      thresholds: {
+        8: [100, 500], 9: [100, 500], 10: [100, 500], 11: [100, 500],
+        12: [50, 250], 13: [20, 100], 14: [10, 50], 15: [10, 50], 16: [5, 25]
+      }
+    },
     allThemes: true            // hillshade + 3D tick boxes stay available in every theme (false = hillshade follows themes' `overlays`)
     // optional: hillshadeName, group, info (link or { metadata }), attribution
   },

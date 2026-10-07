@@ -162,6 +162,7 @@ function setVis(ids, on) {
     syncLayerVisibility(id);
   });
   updateScaleState();
+  updateArcgisLegendInView();
 }
 function setThemeVisibility(ids, on) {
   ids.forEach(id => {
@@ -170,6 +171,7 @@ function setThemeVisibility(ids, on) {
     state.inTheme = on;
     syncLayerVisibility(id);
   });
+  updateArcgisLegendInView();
 }
 function setGroupVisibility(ids, key, on) {
   ids.forEach(id => {
@@ -178,6 +180,7 @@ function setGroupVisibility(ids, key, on) {
     on ? state.groups.delete(key) : state.groups.add(key);
     syncLayerVisibility(id);
   });
+  updateArcgisLegendInView();
 }
 
 // ---- data-driven colours: a 'match' (or 'step') colour expression becomes one legend entry per class ----
@@ -412,6 +415,7 @@ function setupThemes() {
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
     populateSearchLayers();   // search only offers the theme's layers
+    updateArcgisLegendInView();
   };
   sel.onchange = () => apply(sel.value);
   sel.value = CONFIG.defaultTheme || 0;
@@ -595,6 +599,20 @@ function arcgisTileUrl(w) {
   return `${base}/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&dpi=96` +
     `&format=png32&transparent=true&f=image` + (ids ? `&layers=show:${ids}` : '');
 }
+function arcgisLegendRequest(w) {
+  if (!w.url) return null;
+  try {
+    const url = new URL(w.url, location.href);
+    const match = url.pathname.match(/^(.*\/MapServer)(?:\/(\d+))?\/?$/i);
+    if (!match) return null;
+    url.pathname = `${match[1]}/legend`;
+    url.searchParams.set('f', 'json');
+    const configured = w.layers || match[2];
+    const layerIds = configured == null || configured === '' ? null
+      : String(configured).replace(/^show:/i, '').split(',').map(id => id.trim()).filter(id => /^\d+$/.test(id));
+    return { url: url.href, layerIds: layerIds && layerIds.length ? new Set(layerIds) : null };
+  } catch { return null; }
+}
 const overlayTileUrl = w => w.tiles || (/\/MapServer/i.test(w.url) ? arcgisTileUrl(w) : wmsTileUrl(w));
 let originalStyleIds = null;
 function validRasterEntries(entries, label, reserved = []) {
@@ -662,12 +680,22 @@ function configuredTerrainModels() {
 }
 const terrainModels = configuredTerrainModels();
 let activeTerrainModel = null, terrainLayerBeforeId = null;
+const CONTOUR_SOURCE_ID = 'dtm-contour-source';
+const CONTOUR_LINE_ID = 'dtm-contour-lines';
+const CONTOUR_LABEL_ID = 'dtm-contour-labels';
+const contourSettings = (CONFIG.terrain || {}).contours;
+let contoursVisible = contourSettings !== false && (!contourSettings || contourSettings.visible !== false);
+let contourOpacity = contourSettings && typeof contourSettings === 'object' ? contourSettings.opacity ?? 0.8 : 0.8;
+const contourDemSources = new Map();
+let contourDemSource = null, contourGeneration = 0;
 const hillshadeMax = () => (CONFIG.terrain || {}).hillshadeStrength ?? 0.6;
 let terrainShadeStrength = hillshadeMax();
 function allOverlays() {   // configured overlays + the built-in hillshade
   const list = validOverlays(), t = CONFIG.terrain;
   if (t && terrainModels.length && t.hillshade !== false && window.MaplibreCOGProtocol)
     list.push({ id: 'hillshade', name: t.hillshadeName || 'Hillshade (DTM)', group: t.group || 'Terrain', hillshade: true, builtin: true, global: t.allThemes !== false, visible: !!t.hillshadeVisible, opacity: 1, info: t.info });
+  if (t && terrainModels.length && t.contours !== false && window.MaplibreCOGProtocol && window.mlcontour)
+    list.push({ id: CONTOUR_LINE_ID, layerIds: [CONTOUR_LINE_ID, CONTOUR_LABEL_ID], name: contourSettings?.name || 'Contours', group: t.group || 'Terrain', contours: true, builtin: true, global: true, visible: contoursVisible, opacity: contourOpacity, info: contourSettings?.info });
   if (t && terrainModels.length && window.MaplibreCOGProtocol)
     list.push({ id: 'terrain3d', name: '3D terrain', group: t.group || 'Terrain', terrain: true, builtin: true, global: true });
   return list;
@@ -676,8 +704,275 @@ const setOverlayTransparency = (w, v) => {
   if (w.hillshade) {
     terrainShadeStrength = hillshadeMax() * (1 - v / 100);   // hillshade has no opacity: transparency scales its strength
     map.setPaintProperty(w.id, 'hillshade-exaggeration', terrainShadeStrength);
+  } else if (w.contours) {
+    contourOpacity = 1 - v / 100;
+    if (map.getLayer(CONTOUR_LINE_ID)) map.setPaintProperty(CONTOUR_LINE_ID, 'line-opacity', contourOpacity);
+    if (map.getLayer(CONTOUR_LABEL_ID)) map.setPaintProperty(CONTOUR_LABEL_ID, 'text-opacity', contourOpacity);
   } else map.setPaintProperty(w.id, 'raster-opacity', 1 - v / 100);
 };
+function removeTerrainContours() {
+  [CONTOUR_LABEL_ID, CONTOUR_LINE_ID].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+  if (map.getSource(CONTOUR_SOURCE_ID)) map.removeSource(CONTOUR_SOURCE_ID);
+  contourDemSource = null;
+}
+async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
+  const generation = ++contourGeneration;
+  removeTerrainContours();
+  if (contourSettings === false || !window.mlcontour || !window.MaplibreCOGProtocol || !map.getSource(model.sourceId)) return;
+  try {
+    const cogUrl = new URL(model.cog, location.href).href;
+    const metadata = await window.MaplibreCOGProtocol.getCogMetadata(cogUrl);
+    if (generation !== contourGeneration) return;
+    const zooms = (metadata.images || []).filter(image => !image.isMask).map(image => Math.round(image.zoom)).filter(Number.isFinite);
+    const maxzoom = zooms.length ? Math.max(...zooms) : (model.maxzoom || 14);
+    let source = contourDemSources.get(cogUrl);
+    if (!source) {
+      source = new window.mlcontour.DemSource({
+        url: `cog://${cogUrl}#dem/{z}/{x}/{y}`,
+        encoding: 'mapbox', maxzoom, worker: false, cacheSize: 128
+      });
+      source.manager.getTile = async (url, abortController) => {
+        if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        const { data: bitmap } = await window.MaplibreCOGProtocol.cogProtocol({ url, type: 'image' });
+        if (abortController.signal.aborted) { bitmap.close(); throw new DOMException('Aborted', 'AbortError'); }
+        const canvas = typeof OffscreenCanvas !== 'undefined'
+          ? new OffscreenCanvas(256, 256) : Object.assign(document.createElement('canvas'), { width: 256, height: 256 });
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, 256, 256);
+        bitmap.close();
+        const data = canvas.convertToBlob
+          ? await canvas.convertToBlob({ type: 'image/png' })
+          : await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        return { data };
+      };
+      source.setupMaplibre(maplibregl);
+      contourDemSources.set(cogUrl, source);
+    }
+    const thresholds = contourSettings && contourSettings.thresholds || {
+      8: [100, 500], 9: [100, 500], 10: [100, 500], 11: [100, 500],
+      12: [50, 250], 13: [20, 100], 14: [10, 50], 15: [10, 50], 16: [5, 25]
+    };
+    map.addSource(CONTOUR_SOURCE_ID, {
+      type: 'vector', tiles: [source.contourProtocolUrl({ thresholds })], maxzoom
+    });
+    const before = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
+    map.addLayer({
+      id: CONTOUR_LINE_ID, type: 'line', source: CONTOUR_SOURCE_ID, 'source-layer': 'contours',
+      layout: { visibility: contoursVisible ? 'visible' : 'none' },
+      paint: { 'line-color': '#30383b', 'line-opacity': contourOpacity,
+        'line-width': ['match', ['get', 'level'], 1, 1.2, 0.7] }
+    }, before);
+    map.addLayer({
+      id: CONTOUR_LABEL_ID, type: 'symbol', source: CONTOUR_SOURCE_ID, 'source-layer': 'contours',
+      filter: ['>', ['get', 'level'], 0],
+      layout: { visibility: contoursVisible ? 'visible' : 'none', 'symbol-placement': 'line',
+        'text-size': 10, 'text-font': ['Noto Sans Regular'],
+        'text-field': ['concat', ['number-format', ['get', 'ele'], {}], ' m'] },
+      paint: { 'text-color': '#30383b', 'text-opacity': contourOpacity,
+        'text-halo-color': '#fff', 'text-halo-width': 1.2 }
+    }, before);
+    contourDemSource = source;
+    [CONTOUR_LINE_ID, CONTOUR_LABEL_ID].forEach(id => {
+      if (layerVisibility.has(id)) {
+        const state = layerVisibility.get(id);
+        state.selected = contoursVisible;
+        syncLayerVisibility(id);
+      } else registerLayerVisibility(id, contoursVisible);
+    });
+  } catch (error) {
+    console.error(`Could not generate contours for ${model.name}:`, error);
+  }
+}
+const arcgisLegendCache = new Map();
+const arcgisLegendViews = new Map();
+const arcgisCapabilityCache = new Map();
+const arcgisIdentifyDisabled = new Set();
+const arcgisViewValues = new Map();
+let arcgisLastViewKey = '';
+function arcgisServiceUrl(request) {
+  const url = new URL(request.url);
+  url.pathname = url.pathname.replace(/\/legend$/i, '');
+  url.searchParams.delete('f');
+  return url;
+}
+function applyArcgisLegendView(w) {
+  const view = arcgisLegendViews.get(w.id);
+  if (!view) return;
+  view.legend.querySelector('.arcgis-legend-empty')?.remove();
+  view.legend.querySelectorAll('.arcgis-legend-note').forEach(note => note.remove());
+  let filtered = 0, shown = 0;
+  view.legend.querySelectorAll('.arcgis-legend-entry').forEach(row => {
+    const values = row._arcgisValues;
+    const inView = arcgisViewValues.get(`${view.serviceKey}|${row._arcgisLayerId}`);
+    if (!Array.isArray(values) || !values.length || !inView) {
+      row.classList.remove('nv');
+      return;
+    }
+    const present = values.some(value => inView.has(String(value)));
+    row.classList.toggle('nv', !present);
+    filtered++;
+    if (present) shown++;
+  });
+  if (filtered && !shown) {
+    const note = document.createElement('div');
+    note.className = 'arcgis-legend-empty';
+    note.textContent = 'No symbols in the current view.';
+    view.legend.appendChild(note);
+  }
+  if (view.notice) {
+    const note = document.createElement('div');
+    note.className = 'arcgis-legend-note';
+    note.textContent = view.notice;
+    view.legend.appendChild(note);
+  }
+}
+function setArcgisServiceNotice(service, text) {
+  const serviceKey = service.serviceUrl.href;
+  service.layerIds.forEach(id => arcgisViewValues.delete(`${serviceKey}|${id}`));
+  const targetId = service.overlays.find(w => arcgisLegendViews.has(w.id))?.id;
+  arcgisLegendViews.forEach((view, id) => {
+    if (view.serviceKey !== serviceKey) return;
+    view.notice = id === targetId ? text : '';
+    applyArcgisLegendView({ id });
+  });
+}
+function arcgisSupportsQuery(serviceUrl) {
+  const url = new URL(serviceUrl);
+  url.searchParams.set('f', 'json');
+  const key = url.href;
+  if (!arcgisCapabilityCache.has(key)) {
+    arcgisCapabilityCache.set(key, fetch(key).then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }).then(data => {
+      if (data.error) throw new Error(data.error.message || 'ArcGIS service request failed');
+      return String(data.capabilities || '').split(',').includes('Query');
+    }));
+  }
+  return arcgisCapabilityCache.get(key);
+}
+async function updateArcgisLegendInView() {
+  if (!map.getStyle()) return;
+  const services = new Map();
+  validOverlays().forEach(w => {
+    if (!map.getLayer(w.id) || map.getLayoutProperty(w.id, 'visibility') !== 'visible') return;
+    const request = arcgisLegendRequest(w);
+    if (!request || !request.layerIds) return;
+    const serviceUrl = arcgisServiceUrl(request);
+    const serviceKey = serviceUrl.href;
+    if (!services.has(serviceKey)) services.set(serviceKey, { serviceUrl, layerIds: new Set(), overlays: [] });
+    const service = services.get(serviceKey);
+    request.layerIds.forEach(id => service.layerIds.add(id));
+    service.overlays.push(w);
+  });
+  if (!services.size) return;
+  const bounds = map.getBounds();
+  const canvas = map.getCanvas();
+  const extent = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+  const viewKey = `${extent.map(value => value.toFixed(5)).join(',')}|${canvas.clientWidth},${canvas.clientHeight}|` +
+    [...services].map(([key, service]) => `${key}:${[...service.layerIds].sort().join(',')}`).sort().join('|');
+  if (viewKey === arcgisLastViewKey) return;
+  arcgisLastViewKey = viewKey;
+  await Promise.all([...services.entries()].map(async ([serviceKey, service]) => {
+    if (arcgisIdentifyDisabled.has(serviceKey)) {
+      setArcgisServiceNotice(service, 'View filtering is unavailable for this service; all symbols are shown.');
+      return;
+    }
+    try {
+      if (!await arcgisSupportsQuery(service.serviceUrl)) {
+        arcgisIdentifyDisabled.add(serviceKey);
+        setArcgisServiceNotice(service, 'View filtering is unavailable for this service; all symbols are shown.');
+        return;
+      }
+      const url = new URL(service.serviceUrl);
+      url.pathname += '/identify';
+      const params = {
+        f: 'json', geometry: JSON.stringify({ xmin: extent[0], ymin: extent[1], xmax: extent[2], ymax: extent[3], spatialReference: { wkid: 4326 } }),
+        geometryType: 'esriGeometryEnvelope', sr: '4326', mapExtent: extent.join(','),
+        imageDisplay: `${canvas.clientWidth},${canvas.clientHeight},96`, tolerance: '3',
+        layers: `visible:${[...service.layerIds].join(',')}`, returnGeometry: 'false'
+      };
+      Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+      const response = await fetch(url.href);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (data.error) throw new Error(data.error.message || 'ArcGIS identify request failed');
+      const counts = new Map(), values = new Map();
+      (data.results || []).forEach(result => {
+        const id = String(result.layerId);
+        counts.set(id, (counts.get(id) || 0) + 1);
+        if (result.value !== undefined && result.value !== null && result.value !== '') {
+          if (!values.has(id)) values.set(id, new Set());
+          values.get(id).add(String(result.value));
+        }
+      });
+      service.layerIds.forEach(id => {
+        const count = counts.get(id) || 0, found = values.get(id);
+        const key = `${serviceKey}|${id}`;
+        if (count < 1000 && (!count || found?.size)) arcgisViewValues.set(key, found || new Set());
+        else arcgisViewValues.delete(key);
+      });
+      service.overlays.forEach(applyArcgisLegendView);
+    } catch (error) {
+      arcgisIdentifyDisabled.add(serviceKey);
+      setArcgisServiceNotice(service, 'View filtering is unavailable for this service; all symbols are shown.');
+      console.warn('Could not filter ArcGIS legend to the current view:', error);
+    }
+  }));
+}
+function renderArcgisLegend(container, w) {
+  const request = arcgisLegendRequest(w);
+  if (!request) return;
+  const legend = document.createElement('div');
+  legend.className = 'arcgis-legend';
+  legend.textContent = 'Loading legend…';
+  container.appendChild(legend);
+  const serviceKey = arcgisServiceUrl(request).href;
+  arcgisLegendViews.set(w.id, { legend, serviceKey, notice: '' });
+  if (!arcgisLegendCache.has(request.url)) {
+    arcgisLegendCache.set(request.url, fetch(request.url).then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }).then(data => {
+      if (data.error) throw new Error(data.error.message || 'ArcGIS legend request failed');
+      return data;
+    }));
+  }
+  arcgisLegendCache.get(request.url).then(data => {
+    const layers = (data.layers || []).filter(layer => !request.layerIds || request.layerIds.has(String(layer.layerId)));
+    const entries = layers.flatMap(layer => (layer.legend || []).map(entry => ({ layer, entry })))
+      .filter(({ entry }) => entry.imageData || entry.url);
+    legend.replaceChildren();
+    if (!entries.length) {
+      legend.textContent = 'No legend entries available.';
+      return;
+    }
+    entries.forEach(({ layer, entry }) => {
+      const row = document.createElement('div');
+      row.className = 'arcgis-legend-entry';
+      row._arcgisLayerId = String(layer.layerId);
+      row._arcgisValues = Array.isArray(entry.values) ? entry.values : [];
+      const label = entry.label || layer.layerName || '';
+      const image = document.createElement('img');
+      image.alt = label;
+      image.src = entry.imageData
+        ? `data:${entry.contentType || 'image/png'};base64,${entry.imageData}`
+        : new URL(entry.url, request.url).href;
+      row.appendChild(image);
+      if (entry.label) {
+        const text = document.createElement('span');
+        text.textContent = entry.label;
+        row.appendChild(text);
+      }
+      legend.appendChild(row);
+    });
+    applyArcgisLegendView(w);
+  }).catch(error => {
+    console.warn(`Could not load ArcGIS legend for ${w.name || w.id}:`, error);
+    legend.textContent = 'Legend unavailable.';
+  });
+}
+map.on('idle', updateArcgisLegendInView);
+map.on('moveend', updateArcgisLegendInView);
 function buildOverlayLegend() {
   const lg = $('legend');
   const byGroup = {};
@@ -724,18 +1019,22 @@ function buildOverlayLegend() {
       const d = document.createElement('div');
       d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${w.visible === true ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
       const cb = d.querySelector('input');
-      cb.onchange = () => setVis([w.id], cb.checked);
+      cb.onchange = () => {
+        if (w.contours) contoursVisible = cb.checked;
+        setVis(w.layerIds || [w.id], cb.checked);
+      };
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility([w.id], on), el: d };
       const t = layerTools(transp, w.info ?? (CONFIG.layerInfo || {})[w.id], v => setOverlayTransparency(w, v));
       const rowEl = d.querySelector('.grprow');
-      if (w.legendUrl) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
+      if (w.legendUrl || arcgisLegendRequest(w)) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
       if (t.infoBtn) rowEl.appendChild(t.infoBtn);
       rowEl.appendChild(t.btn);
       if (t.infoPanel) d.appendChild(t.infoPanel);
       d.appendChild(t.panel);
       if (w.legendUrl) d.insertAdjacentHTML('beforeend', `<img src="${esc(w.legendUrl)}" alt="" style="max-width:100%;margin:2px 0 4px 20px">`);
+      else renderArcgisLegend(d, w);
       body.appendChild(d);
-      group.layerIds.add(w.id);
+      (w.layerIds || [w.id]).forEach(id => group.layerIds.add(id));
     });
     const hasTerrain = list.some(w => w.terrain);
     if (hasTerrain) group.onVisibilityChange = visible => {
@@ -789,12 +1088,14 @@ map.on('load', () => {
       paint: { 'hillshade-exaggeration': terrainShadeStrength }
     }, firstData && firstData.id);
     if (tc.hillshade !== false) registerLayerVisibility('hillshade', tc.hillshadeVisible === true);
+    setupTerrainContours(activeTerrainModel, firstData && firstData.id);
   } else $('terrainBtn').style.display = 'none';   // no DTM configured
   reverseWithinGroups(validOverlays()).forEach(w => addRasterLayer(w, firstSymbol && firstSymbol.id));
   buildLegend();
   buildOverlayLegend();
   buildBasemapLegend();
   setupThemes();
+  updateArcgisLegendInView();
   loadScaleInfo().then(updateScaleState);
   populateSearchLayers();
   if (!isMobile()) openTool('legend');   // start with the legend open on desktop only
@@ -1045,6 +1346,8 @@ function setTerrainModel(id) {
   const model = terrainModels.find(m => m.id === id);
   if (!model || model === activeTerrainModel) return;
   const tc = CONFIG.terrain;
+  if (map.getLayer(CONTOUR_LINE_ID)) contoursVisible = map.getLayoutProperty(CONTOUR_LINE_ID, 'visibility') !== 'none';
+  removeTerrainContours();
   const hillshadeVisible = map.getLayer('hillshade')
     ? map.getLayoutProperty('hillshade', 'visibility') !== 'none'
     : !!tc.hillshadeVisible;
@@ -1060,6 +1363,7 @@ function setTerrainModel(id) {
     if (terrainLayerBeforeId && map.getLayer(terrainLayerBeforeId)) map.addLayer(layer, terrainLayerBeforeId);
     else map.addLayer(layer);
   }
+  setupTerrainContours(model, terrainLayerBeforeId);
 }
 function setTerrain3D(on, syncCheckbox = true) {
   const tc = CONFIG.terrain;

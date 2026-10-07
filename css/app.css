@@ -80,6 +80,13 @@
   .lgroup.group-hidden .lghead { opacity: .72; }
   .lgroup.collapsed .lgbody { display: none; }
   .lgbody { padding-top: 4px; }
+  .arcgis-legend { margin: 2px 0 4px 20px; color: var(--muted); font-size: 11px; }
+  .arcgis-legend-entry { display: flex; align-items: center; gap: 6px; min-height: 20px; }
+  .arcgis-legend-entry img { max-width: 42px; max-height: 24px; object-fit: contain; flex: none; }
+  .arcgis-legend-entry span { min-width: 0; overflow-wrap: anywhere; }
+  #legend .arcgis-legend-entry.nv { display: none; }
+  .arcgis-legend-empty { font-style: italic; }
+  .arcgis-legend-note { margin-top: 4px; color: var(--muted); font-style: italic; }
   #legend label { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
   #legend .grp { font-weight: 600; }
   #legend .ent { margin-left: 20px; }
@@ -114,7 +121,7 @@
   .cbtn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
   .cspace { width: 22px; flex: none; }
   .lcollapsed .cbtn svg { transform: rotate(-90deg); }
-  #legend .lcollapsed .ent, #legend .lcollapsed .lpanel, #legend .lcollapsed > img { display: none; }   /* #legend prefix beats '#legend label { display:flex }' */
+  #legend .lcollapsed .ent, #legend .lcollapsed .lpanel, #legend .lcollapsed > img, #legend .lcollapsed > .arcgis-legend { display: none; }   /* #legend prefix beats '#legend label { display:flex }' */
   .lpanel { margin: 2px 0 6px 20px; padding: 6px 8px; background: #f3f4f5; border: 1px solid var(--line); border-radius: 5px; font-size: 12px; }
   .lpanel[hidden] { display: none; }
   #legend .lpanel .trow { display: flex; align-items: center; gap: 8px; cursor: default; }

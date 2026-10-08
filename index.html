@@ -84,10 +84,22 @@
     <div id="toast" role="status"></div>
     <div id="boxTip">Drag a box on the map</div>
   </div>
+    <div id="panelSplitter" role="separator" aria-label="Resize results panel" aria-orientation="horizontal"
+      aria-valuemin="150" aria-valuenow="240" aria-valuemax="600" tabindex="0"></div>
   <div id="panel">
     <header><span id="count"></span>
-      <div><button id="csvBtn">Export CSV</button><button id="closeBtn">Close</button></div></header>
+      <div>
+        <button id="csvBtn">Export CSV</button>
+        <button id="jsonExcelBtn" class="json-action" aria-label="Export Excel" hidden>XLSX</button>
+        <button id="jsonCopyBtn" class="json-action" aria-label="Copy filtered map link" hidden>Copy</button>
+        <button id="jsonClearBtn" class="json-action" aria-label="Clear filters" hidden>Clear</button>
+        <button id="closeBtn">Close</button>
+      </div>
+    </header>
     <div id="tabs"></div>
+    <section id="jsonControls" hidden>
+      <div id="jsonActiveFilters" role="group" aria-label="Active filters"></div>
+    </section>
     <div id="tablewrap"></div>
   </div>
 </div>
@@ -97,6 +109,8 @@
 <script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.10.0/dist/index.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js"></script>
 <script src="https://unpkg.com/maplibre-contour@0.1.1/dist/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="leaflet_app/geomaterials/config.js"></script>
 <script src="js/config.js"></script>
 <script src="js/styles.js"></script>
 </body>

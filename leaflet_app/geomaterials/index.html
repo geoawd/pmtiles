@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Map and icon dependencies -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+
+    <!-- Shared application styles -->
+    <link rel="stylesheet" href="../app.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+        <h1 id="app-title">Loading...</h1>
+            <div class="header-buttons-container" id="header-buttons-container"></div>
+        </header>
+
+        <div class="map-container">
+            <div id="map" role="application" aria-label="Interactive map"></div>
+            <div class="depth-legend" id="depth-legend"></div>
+            <div class="map-info" role="status" aria-live="polite">
+                <div><strong>Visible Records:</strong> <span id="visible-count">0</span></div>
+                <div id="active-filters"></div>
+            </div>
+        </div>
+
+        <div class="tabs-container">
+            <div class="tabs-header" id="tabs-header"></div>
+            <div class="tabs-content" id="tabs-content"></div>
+        </div>
+    </div>
+
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.8.1/proj4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         APP CONFIGURATION
+         This is the only block that changes between deployments.
+         app.js reads APP_CONFIG and must be loaded after this script.
+         ═══════════════════════════════════════════════════════════════════ -->
+    <script>
+        const APP_CONFIG = {
+
+            // App title — shown in the header and browser tab
+            title: 'Geomaterials',
+
+            // Unique identifier for this deployment — used to match entries in
+            // deploymentlinks.json so only relevant link icons are shown here.
+            // Must match the 'id' field in deployments.json for this deployment.
+            deploymentId: 'geomaterials',
+
+            // Header/brand colour — also drives the active tab highlight
+            brandColor: '#2c3e50',
+
+            // Field that links all datasets together (foreign key)
+            linkField: 'BOREHOLE ID',
+
+            // Field containing WKT geometry on the primary tab: POINT(easting northing)
+            geometryField: 'GEOM',
+
+            // Coordinate reference system of the geometry field
+            projection: 'EPSG:29902',   // Irish Grid
+
+            // Optional: proj4 definition string for the projection above.
+            // Only needed if the projection is not EPSG:29902 (Irish Grid), which is
+            // built in. For any other CRS, supply the proj4 string here.
+            // You can look up the correct string at https://epsg.io/<code>?proj4
+            //
+            // Examples:
+            //
+            //   Irish Transverse Mercator (EPSG:2157):
+            //   projectionDef: '+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=0.99982 +x_0=600000 +y_0=750000 +ellps=GRS80 +units=m +no_defs',
+            //
+            //   British National Grid (EPSG:27700):
+            //   projectionDef: '+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +datum=OSGB36 +units=m +no_defs',
+            //
+            //   UTM Zone 29N (EPSG:32629):
+            //   projectionDef: '+proj=utm +zone=29 +datum=WGS84 +units=m +no_defs',
+            //
+            // Omit this property entirely when using EPSG:29902.
+            // projectionDef: '+proj=...',
+
+            // Field used as the display name (prepended to sibling tabs, used in popups)
+            labelField: 'BOREHOLE NAME',
+
+            // Fields shown in map marker popups, in order.
+            // bold: true  — wraps the value in <strong>
+            // label       — optional prefix shown before the value
+            // suffix      — optional text appended after the value
+            popupFields: [
+                { field: 'BOREHOLE NAME',      bold: true },
+                { field: 'BOREHOLE ID' },
+                { field: 'COMPANY NAME' },
+                { field: 'TOTAL DEPTH METRES', label: 'Total Depth', suffix: ' M' },
+                { type: 'zoomLink', label: 'Zoom to site' },
+
+            ],
+
+            // Initial map centre [lat, lng] and zoom level
+            mapCenter: [54.62, -6.39],
+            mapZoom: 8,
+            
+            // Set to true to cluster markers at low zoom levels.
+            // When true the depth colour legend is hidden — clusters
+            // use their own count-based symbology.
+            clustering: false,
+            // Set to true to truncate long cell values with an ellipsis rather
+            // than wrapping onto multiple lines. Keeps rows a consistent height
+            // for virtual scrolling. Full value shown on hover. Default: true.
+            truncateCells: true,
+
+            // ── Polygon symbology ──────────────────────────────────────────────
+            // colorField   — field whose value determines stroke colour.
+            //                Each distinct value gets a stable auto-generated colour.
+            // strokeWidth  — polygon outline width in pixels (default: 2)
+            // fillOpacity  — 0 = outline only, 0.3 = light fill (default: 0)
+            // showLegend   — show a categorical colour legend (default: true)
+            //symbology: {
+             //   colorField:  'ID',
+             //   strokeWidth: 2,
+             //   fillOpacity: 0,
+             //   showLegend:  true,
+           // },
+
+            // ── Tabs ──────────────────────────────────────────────────────────
+            // isPrimary: true  — exactly one tab; owns the map markers
+            // specialFilter    — if set, a header button is generated that limits
+            //                    the primary tab to records linked in this dataset
+            tabs: [
+                {
+                    key:       'boreholes',
+                    label:     'Boreholes',
+                    file:      'api_v2_boreholes.json',
+                    dataKey:   'api_v2_boreholes',
+                    isPrimary: true,
+                    icon:      'fa-map-pin',
+                    exportRows: 'filtered',  // export only the filtered borehole rows
+                    help: {
+                        title:   'Borehole Locations',       // optional — defaults to tab label
+                        content: `<p>Each row is a borehole logged by the survey.</p>
+                                <ul>
+                                    <li>Depth values are in metres below ground level</li>
+                                    <li>Use the ≥ filter on Depth to find deep boreholes</li>
+                                </ul>
+                                <p>View the <a target="blank" href="https://gsni-data.bgs.ac.uk/geonetwork/srv/eng/catalog.search#/metadata/09757268-929d-4203-b1fc-56d9391e4688"> metadata on the Data Catalogue</a></p>
+                                `
+                    }
+                },
+                {
+                    key:     'geology',
+                    label:   'Geology',
+                    file:    'api_v2_downhole.json',
+                    dataKey: 'api_v2_downhole',
+                    icon:    'fa-layer-group',
+                    specialFilter: 'Geology',
+                    exportRows: 'all',       // all geology rows for active boreholes
+                    hideable: true,
+                    help: {
+                        title:   'Downhole Geology',       // optional — defaults to tab label
+                        content: `<p>Coded to provide a broad overview of the geology, linked to the BGS Lexicon.</p>
+                                <ul>
+                                    <li>Depth values are in metres below ground level</li>
+                                    <li>Use the ≥ filter on Depth to find deep boreholes</li>
+                                    <li> click on the ≥ to toggle</li>
+                                </ul>`
+                        } 
+                },
+                {
+                    key:           'coreboxes',
+                    label:         'Core Boxes',
+                    file:          'api_v2_core_boxes.json',
+                    dataKey:       'api_v2_core_boxes',
+                    icon:          'fa-box',
+                    specialFilter: 'Core Boxes',
+                    exportRows:    'filtered',
+                    hideable: true, 
+                    help: {
+                        title:   'Core Boxes',       // optional — defaults to tab label
+                        content: `<p>Boreholes for which there are coreboxes retained in the GSNI Core Store. These may be continuous cores or cores for selected intervals.</p>`
+                        } 
+                },
+                {
+                    key:           'sampletrays',
+                    label:         'Sample Trays',
+                    file:          'api_v2_borehole_sample_trays.json',
+                    dataKey:       'api_v2_borehole_sample_trays',
+                    icon:          'fa-cubes',
+                    specialFilter: 'Sample Trays',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                    title:   'Sample Trays',       // optional — defaults to tab label
+                    content: `<p>Trays containing discontinuous core samples from boreholes.</p>`
+                    }                     
+                },
+                {
+                    key:           'cuttings',
+                    label:         'Cuttings',
+                    file:          'api_v2_cuttings_box_lex.json',
+                    dataKey:       'api_v2_cuttings_box_lex',
+                    icon:          'fa-vials',
+                    specialFilter: 'Cuttings',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                        title:   'Cuttings',       // optional — defaults to tab label
+                        content: `<p>Cuttings from boreholes. Typically one of the following types:</p>
+                                <ul>
+                                    <li>Washed and Dried Cuttings</li>
+                                    <li>Wet Cuttings</li>
+                                    <li>Rockwash Cuttings (These are generally a sub-sample and have been prepared by Rockwash)</li>
+                                </ul>`
+                        }                     
+                },
+                {
+                    key:           'rockwash',
+                    label:         'Rockwash',
+                    file:          'api_v2_rockwash.json',
+                    dataKey:       'api_v2_rockwash',
+                    icon:          'fa-vials',
+                    specialFilter: 'Rockwash',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                    title:   'Rockwash Data',       // optional — defaults to tab label
+                    content: `<p>Samples that have been processed by Rockwash. Cuttings washed, photographed and XRF analysis carried out.</p>`
+                        }                     
+                },
+                {
+                    key:           'thinsections',
+                    label:         'Thinsections',
+                    file:          'api_v2_thinsections.json',
+                    dataKey:       'api_v2_thinsections',
+                    icon:          'fa-vials',
+                    specialFilter: 'Thin Sections',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                        title:   'Thin Sections',       // optional — defaults to tab label
+                        content: `<p>Boreholes for which thin section slides are held. For many of these, the original rock sample is also retained.</p>`
+                        } 
+                },
+                {
+                    key:           'thermalconductivity',
+                    label:         'Thermal Conductivity',
+                    file:          'api_v2_thermal_conductivity.json',
+                    dataKey:       'api_v2_thermal_conductivity',
+                    icon:          'fa-vials',
+                    specialFilter: 'Thermal Conductivity',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                        title:   'Thermal Conductivity',       // optional — defaults to tab label
+                        content: `<p>Boreholes for which Thermal Conductivity measurements have been taken.</p>`
+                        }                     
+                },
+                {
+                    key:           'fluidinclusion',
+                    label:         'Fluid Inclusion',
+                    file:          'api_v2_fluid_inclusion.json',
+                    dataKey:       'api_v2_fluid_inclusion',
+                    icon:          'fa-vials',
+                    specialFilter: 'Fluid Inclusion',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                        title:   'Fluid Inclusion Data',       // optional — defaults to tab label
+                        content: `<p>Samples prepared by rockwash and sent for Fluid Inclusion Analysis. Prepared samples are retained.</p>`
+                        }                     
+                },
+
+{
+                    key:           'reports',
+                    label:         'Reports',
+                    file:          'api_v2_reports.json',
+                    dataKey:       'api_v2_reports',
+                    icon:          'fa-vials',
+                    specialFilter: 'Reports',
+                    exportRows:    'filtered',
+                    hideable: true,
+                    help: {
+                        title:   'Reports',       // optional — defaults to tab label
+                        content: `<p>Reports that contain information for the borehole.</p>`
+                        }                     
+                },
+
+            ],
+            // ── Multi-select dropdown filter columns ───────────────────────────
+            // Columns listed here get a constrained multi-select dropdown instead
+            // of a text input. Options are limited to values present in the current
+            // bounds + active filters. Selection within a column is OR; across
+            // columns it is AND.
+            dropdownColumns: ['BOREHOLE NAME', 'COMPANY NAME', 'LEX', 'GROUP LEX', 'TOPLEX', 'BOTTOMLEX'],
+            // ── Numeric range filter columns ───────────────────────────────────
+            // Columns listed here get a ≥ / ≤ number input instead of a text box.
+            // 'gte' → only show rows where value >= entered number
+            // 'lte' → only show rows where value <= entered number
+            rangeFilterColumns: {
+                'TOTAL DEPTH METRES':           'gte',
+                'TOP':                          'gte',
+                'BOTTOM':                       'lte',
+                'CORE_TOP_DEPTH_METRES':        'gte',
+                'CORE_BOTTOM_DEPTH_METRES':     'lte',
+                'TOP DEPTH (M)':                'gte',
+                'BOTTOM DEPTH (M)':             'lte',
+                'CUTTINGS_TOP_DEPTH_METRES':    'gte',
+                'CUTTINGS_BOTTOM_DEPTH_METRES': 'lte',
+                'Quartz':                       'gte',
+            },
+
+            // ── Columns hidden from table display and export ───────────────────
+            hiddenColumns: ['GEOM', 'BOREHOLE ID'],
+
+            // ── Columns that should never be treated as numeric ───────────────
+            // Prevents ID/code fields with numeric-looking values from being
+            // rendered right-aligned and formatted to 2 decimal places.
+            nonNumericColumns: [
+                'COREBOXID', 'SAMPLE TRAY ID', 'CUTTINGS_BOX_ID',
+                'LOCATION_CODE', 'ORIGINAL UNITS', 'THIN SECTION ID'
+            ],
+
+
+            // ── Custom link labels for URL-valued columns ──────────────────────
+            // Any cell value beginning with http/https/ftp is auto-detected and
+            // rendered as a hyperlink. Add entries here to override the default
+            // 'View' label for specific column names.
+            urlFields: {
+                'BOREHOLE_LOG_URL': 'View Log',
+            },
+
+            // ── Computed links ─────────────────────────────────────────────────
+            // Adds a small icon beside the raw cell value that links to
+            // prefix + value (opened in a new tab). Applies wherever the field
+            // appears across all tabs.
+            // icon  — Font Awesome class (default: fa-external-link-alt)
+            // title — tooltip text on the icon (optional)
+               computedLinks: [
+                 {
+                     field:  'LEX',
+                     prefix: 'https://webapps.bgs.ac.uk/lexicon/lexicon.cfm?pub=',
+                     suffix: '',
+                     icon:   'fa-external-link-alt',
+                     title:  'Search the lexicon',
+                 },
+                {
+                     field:  'TOPLEX',
+                     prefix: 'https://webapps.bgs.ac.uk/lexicon/lexicon.cfm?pub=',
+                     suffix: '',
+                     icon:   'fa-external-link-alt',
+                     title:  'Search the lexicon',
+                 },
+                {
+                     field:  'BOTTOMLEX',
+                     prefix: 'https://webapps.bgs.ac.uk/lexicon/lexicon.cfm?pub=',
+                     suffix: '',
+                     icon:   'fa-external-link-alt',
+                     title:  'Search the lexicon',
+                 },
+                {
+                    field:  'GROUP LEX',
+                     prefix: 'https://webapps.bgs.ac.uk/lexicon/lexicon.cfm?pub=',
+                     suffix: '',
+                     icon:   'fa-external-link-alt',
+                     title:  'Search the lexicon',
+                 },
+                 {
+                field:  'SAMPLE TRAY ID',
+                     prefix: 'http://127.0.0.1:8080/geomaterials/sampletrays/',
+                     suffix: '.2000.jpg',
+                     icon:   'fa-regular fa-eye',
+                     title:  'Search the lexicon',
+                 } 
+            ],
+
+            // ── Marker colour classes (keyed on depthField) ───────────────────
+            // max is exclusive upper bound; Infinity catches all remaining values.
+            depthField: 'TOTAL DEPTH METRES',
+            depthClasses: [
+                { max:        0, fill: '#aaaaaa', label: 'Null / unknown'    },
+                { max:       50, fill: '#2166ac', label: '0 – 50 m'          },
+                { max:      100, fill: '#74add1', label: '50 – 100 m'        },
+                { max:      250, fill: '#abd9e9', label: '100 – 250 m'       },
+                { max:      500, fill: '#fee090', label: '250 – 500 m'       },
+                { max:     1000, fill: '#f46d43', label: '500 – 1 000 m'     },
+                { max:     1500, fill: '#d73027', label: '1 000 – 1 500 m'   },
+                { max: Infinity, fill: '#7b0000', label: '1 500 – 3 000 m'   },
+            ],
+        };
+    </script>
+
+    <!-- Application logic — reads APP_CONFIG defined above -->
+    <script src="../app.js"></script>
+
+</body>
+</html>

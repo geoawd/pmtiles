@@ -158,6 +158,7 @@ window.CONFIG = {
     { name: 'Geophysics', overlays: ['gsni_pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
    // { name: 'Geochemistry', overlays: ['esri_world_imagery'] },
     { name: 'Hydrogeology', overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer','esri_world_imagery'] },
+    { name: 'Geomaterials', jsonTheme: 'geomaterials', layers: [], overlays: [] },
    // { name: 'Minerals', overlays: ['esri_world_imagery'] },
    // { name: 'All layers' }
   ],

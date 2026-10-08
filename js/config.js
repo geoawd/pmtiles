@@ -3,6 +3,15 @@
 window.CONFIG = {
   title: 'MAPLIBRE DEMO',        // heading on printouts
   showZoom: true,             // development helper: show the current zoom level beside the grid reference
+  // Vector datasets: each has its own .pmtiles and style.json. Layers from all datasets share one legend.
+  //   id (unique) | style (style.json path) | pmtiles (optional: overrides the file named in that style) | name (optional legend group if the style has none)
+  // Themes can use `datasets: ['geol']` to switch on every layer from a dataset, and/or `layers: [...]` for individual layers.
+  // Remove `datasets` to use `styleUrl` alone.
+  datasets: [
+    { id: 'bores', name: 'Site Investigations', style: 'layers.json', pmtiles: 'data/layers.pmtiles' },
+    { id: 'Geology', name: 'Geology', style: 'geology.json', pmtiles: 'data/layers.pmtiles' },
+
+  ],
   styleUrl: 'style.json',
   queryLayers: null,          // null = auto-detect every layer on a vector source in your style; or list ids
   basemaps: [
@@ -190,7 +199,7 @@ window.CONFIG = {
         13: [10, 100], 
         14: [10, 100], 
         15: [10, 100], 
-        16: [1, 10]
+        16: [10, 100]
       }
     },
     allThemes: true            // hillshade + 3D tick boxes stay available in every theme (false = hillshade follows themes' `overlays`)

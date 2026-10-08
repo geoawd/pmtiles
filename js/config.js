@@ -199,7 +199,7 @@ window.CONFIG = {
         13: [10, 100], 
         14: [10, 100], 
         15: [10, 100], 
-        16: [1, 10]
+        16: [10, 100]
       }
     },
     allThemes: true            // hillshade + 3D tick boxes stay available in every theme (false = hillshade follows themes' `overlays`)

@@ -824,14 +824,22 @@ async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
         if (abortController.signal.aborted) throw new DOMException('Aborted', 'AbortError');
         const { data: bitmap } = await window.MaplibreCOGProtocol.cogProtocol({ url, type: 'image' });
         if (abortController.signal.aborted) { bitmap.close(); throw new DOMException('Aborted', 'AbortError'); }
+        return { data: bitmap };
+      };
+      // Decode the Terrain-RGB bitmap at native size (no resampling); transparent (no-data) pixels become NaN.
+      source.manager.decodeImage = async (bitmap) => {
+        const { width, height } = bitmap;
         const canvas = typeof OffscreenCanvas !== 'undefined'
-          ? new OffscreenCanvas(256, 256) : Object.assign(document.createElement('canvas'), { width: 256, height: 256 });
-        canvas.getContext('2d').drawImage(bitmap, 0, 0, 256, 256);
-        bitmap.close();
-        const data = canvas.convertToBlob
-          ? await canvas.convertToBlob({ type: 'image/png' })
-          : await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        return { data };
+          ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(bitmap, 0, 0);
+        const px = ctx.getImageData(0, 0, width, height).data;
+        const out = new Float32Array(width * height);
+        for (let i = 0; i < out.length; i++) {
+          const j = i * 4;
+          out[i] = px[j + 3] < 255 ? NaN : (px[j] * 65536 + px[j + 1] * 256 + px[j + 2]) * 0.1 - 10000;
+        }
+        return { width, height, data: out };
       };
       source.setupMaplibre(maplibregl);
       contourDemSources.set(cogUrl, source);

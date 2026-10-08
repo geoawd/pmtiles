@@ -1,4 +1,5 @@
 import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.mjs';
+import { buildJsonPointFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
 
 window.maplibregl = maplibregl;
 const CONFIG = window.CONFIG;
@@ -472,38 +473,15 @@ function addGroup(parent, name) {
   return group;
 }
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
-const GEOMATERIALS_SOURCE = 'geomaterials-json';
-const GEOMATERIALS_LAYER = 'geomaterials-points';
-const geomaterialsState = {
-  active: false,
-  loaded: false,
-  loading: null,
-  rows: {},
-  features: [],
-  featureById: new Map(),
-  errors: {},
-  tab: 'boreholes',
-  hiddenTabs: new Set(),
-  boundedIds: new Set(),
-  baseIds: new Set(),
-  finalIds: new Set(),
-  visibleRows: {},
-  filters: { text: {}, range: {}, operators: {}, dropdown: {} },
-  specialFilter: null,
-  linkedVisible: true,
-  openDropdown: null,
-  dropdownSearch: {},
-  filterFocus: null,
-  filterSelection: null,
-  panelManuallySized: false,
-  depthGroup: null,
-  linkedGroup: null,
-  sort: {},
-  panelClosed: false,
-  stateRestored: false,
-  deployments: [],
-  deploymentLinks: []
-};
+const jsonThemeStates = new Map();
+let activeJsonThemeId = null;
+let activeJsonConfig = null;
+let geomaterialsState = createJsonThemeState();
+function jsonThemeMapIds(themeId = activeJsonThemeId) {
+  const namespace = String(themeId || 'theme').replace(/[^a-z0-9_-]/gi, '-');
+  const layer = `json-${namespace}-points`;
+  return { source: `json-${namespace}-source`, layer, clusters: `${layer}-clusters`, clusterCount: `${layer}-cluster-count` };
+}
 function resolveThemeGroup(name) {
   const namedTheme = (CONFIG.themes || []).find(theme => theme.name === name);
   const datasets = namedTheme?.datasets || [];
@@ -528,7 +506,7 @@ function setupThemes() {
   sel.innerHTML = list.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
   const apply = i => {
     const t = list[i];
-    const all = !t.layers && !t.overlays && !t.datasets && !t.groups;
+    const all = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
     const groupMembers = (t.groups || []).map(resolveThemeGroup);
     const themeNames = [
       ...(t.layers || []),
@@ -549,42 +527,35 @@ function setupThemes() {
     document.querySelectorAll('#legend .lgroup').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
-    setGeomaterialsTheme(t.jsonTheme === 'geomaterials');
+    if (t.jsonTheme) activateJsonTheme(t).catch(error => toast(`Could not load ${t.name} config: ${error.message}`));
+    else setGeomaterialsTheme(false);
     populateSearchLayers();   // search only offers the theme's layers
     updateArcgisLegendInView();
   };
   sel.onchange = () => apply(sel.value);
-  const hasSharedJsonState = !!location.hash && list.some(theme => theme.jsonTheme === 'geomaterials');
-  const initialTheme = hasSharedJsonState ? list.findIndex(theme => theme.jsonTheme === 'geomaterials') : (CONFIG.defaultTheme || 0);
+  const firstJsonTheme = list.findIndex(theme => theme.jsonTheme && theme.jsonConfig);
+  const hasSharedJsonState = !!location.hash && firstJsonTheme >= 0;
+  const initialTheme = hasSharedJsonState ? firstJsonTheme : (CONFIG.defaultTheme || 0);
   sel.value = initialTheme;
   apply(sel.value);
 }
+async function activateJsonTheme(theme) {
+  const config = await loadJsonThemeConfig(theme);
+  const themeId = theme.jsonTheme;
+  if (activeJsonThemeId !== themeId && geomaterialsState.active) setGeomaterialsTheme(false);
+  activeJsonThemeId = themeId;
+  activeJsonConfig = config;
+  if (!jsonThemeStates.has(themeId)) {
+    const state = createJsonThemeState();
+    state.themeId = themeId;
+    state.tab = config.tabs.find(tab => tab.isPrimary)?.key || config.tabs[0]?.key || null;
+    jsonThemeStates.set(themeId, state);
+  }
+  geomaterialsState = jsonThemeStates.get(themeId);
+  setGeomaterialsTheme(true);
+}
 function geomaterialsConfig() {
-  return window.GEOMATERIALS_CONFIG;
-}
-function parseGeomaterialsPoint(wkt) {
-  const match = typeof wkt === 'string' && wkt.match(/^\s*POINT\s*\(\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*\)\s*$/i);
-  if (!match) return null;
-  const config = geomaterialsConfig();
-  const projection = config.projection || 'EPSG:29902';
-  if (config.projectionDef && !proj4.defs(projection)) proj4.defs(projection, config.projectionDef);
-  const coordinates = proj4(projection, 'WGS84', [Number(match[1]), Number(match[2])]);
-    return coordinates.every(Number.isFinite) && Math.abs(coordinates[0]) <= 180 && Math.abs(coordinates[1]) <= 85.051129
-      ? coordinates : null;
-}
-function geomaterialsPointFeatures() {
-  const config = geomaterialsConfig();
-  const primary = config.tabs.find(tab => tab.isPrimary);
-  return (geomaterialsState.rows[primary.key] || []).flatMap(row => {
-    const coordinates = parseGeomaterialsPoint(row[config.geometryField]);
-    if (!coordinates) return [];
-    return [{
-      type: 'Feature',
-      id: String(row[config.linkField]),
-      geometry: { type: 'Point', coordinates },
-      properties: row
-    }];
-  });
+  return activeJsonConfig;
 }
 function geomaterialsColorExpression(config) {
   const value = ['to-number', ['get', config.depthField], -1];
@@ -597,9 +568,10 @@ function geomaterialsColorExpression(config) {
   return expression;
 }
 function addGeomaterialsMapLayers() {
-  if (!map.getSource(GEOMATERIALS_SOURCE)) {
+  const ids = jsonThemeMapIds();
+  if (!map.getSource(ids.source)) {
     const config = geomaterialsConfig();
-    map.addSource(GEOMATERIALS_SOURCE, {
+    map.addSource(ids.source, {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: geomaterialsState.features },
       cluster: config.clustering === true,
@@ -608,7 +580,7 @@ function addGeomaterialsMapLayers() {
     });
     if (config.clustering) {
       map.addLayer({
-        id: `${GEOMATERIALS_LAYER}-clusters`, type: 'circle', source: GEOMATERIALS_SOURCE,
+        id: ids.clusters, type: 'circle', source: ids.source,
         filter: ['has', 'point_count'],
         paint: {
           'circle-color': '#286b68',
@@ -618,13 +590,13 @@ function addGeomaterialsMapLayers() {
         }
       });
       map.addLayer({
-        id: `${GEOMATERIALS_LAYER}-cluster-count`, type: 'symbol', source: GEOMATERIALS_SOURCE,
+        id: ids.clusterCount, type: 'symbol', source: ids.source,
         filter: ['has', 'point_count'],
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12 },
         paint: { 'text-color': '#ffffff' }
       });
       map.addLayer({
-        id: GEOMATERIALS_LAYER, type: 'circle', source: GEOMATERIALS_SOURCE,
+        id: ids.layer, type: 'circle', source: ids.source,
         filter: ['!', ['has', 'point_count']],
         paint: {
           'circle-color': geomaterialsColorExpression(config),
@@ -635,7 +607,7 @@ function addGeomaterialsMapLayers() {
       });
     } else {
       map.addLayer({
-        id: GEOMATERIALS_LAYER, type: 'circle', source: GEOMATERIALS_SOURCE,
+        id: ids.layer, type: 'circle', source: ids.source,
         paint: {
           'circle-color': geomaterialsColorExpression(config),
           'circle-radius': 5,
@@ -644,14 +616,14 @@ function addGeomaterialsMapLayers() {
         }
       });
     }
-    map.on('click', GEOMATERIALS_LAYER, showGeomaterialsPopup);
-    map.on('mouseenter', GEOMATERIALS_LAYER, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', GEOMATERIALS_LAYER, () => { map.getCanvas().style.cursor = ''; });
+    map.on('click', ids.layer, showGeomaterialsPopup);
+    map.on('mouseenter', ids.layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', ids.layer, () => { map.getCanvas().style.cursor = ''; });
   }
-  map.getSource(GEOMATERIALS_SOURCE).setData({
+  map.getSource(ids.source).setData({
     type: 'FeatureCollection', features: geomaterialsState.features
   });
-  [GEOMATERIALS_LAYER, `${GEOMATERIALS_LAYER}-clusters`, `${GEOMATERIALS_LAYER}-cluster-count`]
+  [ids.layer, ids.clusters, ids.clusterCount]
     .filter(id => map.getLayer(id)).forEach(id => registerLayerVisibility(id, true));
 }
 ///////////////////////////////////////////////////////////////////////////
@@ -771,42 +743,14 @@ function loadGeomaterialsData() {
   if (geomaterialsState.loaded) return Promise.resolve();
   if (geomaterialsState.loading) return geomaterialsState.loading;
   const config = geomaterialsConfig();
-  geomaterialsState.loading = (async () => {
-    const results = [];
-    for (let start = 0; start < config.tabs.length; start += 3) {
-      const batch = await Promise.all(config.tabs.slice(start, start + 3).map(async tab => {
-        try {
-          const url = new URL(tab.file, new URL(config.dataDirectory, location.href));
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const payload = await response.json();
-          if (!Array.isArray(payload[tab.dataKey])) throw new Error(`Missing array: ${tab.dataKey}`);
-          return [tab.key, payload[tab.dataKey]];
-        } catch (error) {
-          geomaterialsState.errors[tab.key] = error.message;
-          return [tab.key, []];
-        }
-      }));
-      results.push(...batch);
-    }
-    return results;
-  })().then(async results => {
-    geomaterialsState.rows = Object.fromEntries(results);
+  geomaterialsState.loading = loadJsonThemeData(config).then(data => {
+    geomaterialsState.rows = data.rows;
+    geomaterialsState.errors = data.errors;
+    geomaterialsState.deployments = data.deployments;
+    geomaterialsState.deploymentLinks = data.deploymentLinks;
     const primary = config.tabs.find(tab => tab.isPrimary);
-    const labels = new Map(geomaterialsState.rows[primary.key].map(row => [row[config.linkField], row[config.labelField]]));
-    config.tabs.filter(tab => !tab.isPrimary).forEach(tab => {
-      geomaterialsState.rows[tab.key] = geomaterialsState.rows[tab.key].map(row => ({
-        [config.labelField]: labels.get(row[config.linkField]) || '\u2014', ...row
-      }));
-    });
-    geomaterialsState.features = geomaterialsPointFeatures();
+    geomaterialsState.features = buildJsonPointFeatures(geomaterialsState.rows[primary.key], config, proj4);
     geomaterialsState.featureById = new Map(geomaterialsState.features.map(feature => [String(feature.id), feature]));
-    const optionalJson = path => fetch(path).then(response => response.ok ? response.json() : []).catch(() => []);
-    [geomaterialsState.deployments, geomaterialsState.deploymentLinks] = await Promise.all([
-      optionalJson(config.deploymentsFile), optionalJson(config.deploymentLinksFile)
-    ]);
-    if (!Array.isArray(geomaterialsState.deployments)) geomaterialsState.deployments = [];
-    if (!Array.isArray(geomaterialsState.deploymentLinks)) geomaterialsState.deploymentLinks = [];
     geomaterialsState.loaded = true;
     if (geomaterialsState.active) {
       addGeomaterialsMapLayers();
@@ -838,13 +782,26 @@ function setGeomaterialsTheme(active) {
   $('runSearch').disabled = active;
   $('searchText').disabled = active;
   document.querySelector('#rail [data-tool="search"]').disabled = active;
+  if (!activeJsonConfig) {
+    $('jsonControls').hidden = true;
+    $('jsonExcelBtn').hidden = true;
+    $('jsonCopyBtn').hidden = true;
+    $('jsonClearBtn').hidden = true;
+    $('csvBtn').hidden = false;
+    $('boxBtn').disabled = false;
+    $('runSearch').disabled = false;
+    $('searchText').disabled = false;
+    document.querySelector('#rail [data-tool="search"]').disabled = false;
+    return;
+  }
   if (active && boxMode) setBox(false);
   if (active && tool === 'search') openTool('search');
   if (active && !wasActive && isMobile()) {
     toast('This view is not optimised for mobile devices. Please view it on a desktop.');
   }
   updateGeomaterialsLegend(active);
-  setThemeVisibility([GEOMATERIALS_LAYER, `${GEOMATERIALS_LAYER}-clusters`, `${GEOMATERIALS_LAYER}-cluster-count`], active);
+  const ids = jsonThemeMapIds();
+  setThemeVisibility([ids.layer, ids.clusters, ids.clusterCount], active);
   if (active) {
     if (!wasActive) geomaterialsState.panelClosed = !!geomaterialsState.linkedGroup?.section.classList.contains('group-hidden');
     if (!wasActive && !geomaterialsState.panelManuallySized) setPanelHeight(mainView.clientHeight * 0.35);
@@ -856,22 +813,23 @@ function updateGeomaterialsLegend(active) {
   const config = geomaterialsConfig();
   const legend = $('legend');
   if (!geomaterialsState.depthGroup) {
-    const depth = addGroup(legend, 'Borehole depth');
+    const themeNamespace = String(geomaterialsState.themeId || activeJsonThemeId).replace(/[^a-z0-9_-]/gi, '-');
+    const depth = addGroup(legend, config.legendTitle || `${config.title} features`);
     depth.section = depth.body.closest('.lgroup');
-    depth.section.id = 'geomaterialsLegend';
-    [GEOMATERIALS_LAYER, `${GEOMATERIALS_LAYER}-clusters`, `${GEOMATERIALS_LAYER}-cluster-count`]
-      .forEach(id => depth.layerIds.add(id));
+    depth.section.id = `json-${themeNamespace}-depth-legend`;
+    const ids = jsonThemeMapIds();
+    [ids.layer, ids.clusters, ids.clusterCount].forEach(id => depth.layerIds.add(id));
     (config.depthClasses || []).forEach(item => {
       const row = document.createElement('div'); row.className = 'json-legend-row';
       const swatch = document.createElement('span'); swatch.className = 'json-legend-swatch'; swatch.style.backgroundColor = item.fill;
       const label = document.createElement('span'); label.textContent = item.label;
       row.append(swatch, label); depth.body.appendChild(row);
     });
-    const linked = addGroup(legend, 'Quick Filters/Results Table');
+    const linked = addGroup(legend, config.filterGroupTitle || `${config.title} filters/results`);
     linked.section = linked.body.closest('.lgroup');
-    linked.section.id = 'geomaterialsFilterLegend';
+    linked.section.id = `json-${themeNamespace}-filters-legend`;
     linked.section.classList.add('json-link-filters');
-    const controls = document.createElement('div'); controls.id = 'jsonSpecialFilters';
+    const controls = document.createElement('div'); controls.className = 'json-special-filters';
     controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', 'Linked-data filters');
     linked.body.appendChild(controls);
     linked.onVisibilityChange = visible => {
@@ -946,8 +904,9 @@ function refreshGeomaterialsResults(reopenPanel = false) {
       .filter(row => finalIds.has(row[config.linkField]));
   });
   const visibleFeatures = geomaterialsState.features.filter(feature => finalIds.has(feature.properties[config.linkField]));
-  if (map.getSource(GEOMATERIALS_SOURCE)) {
-    map.getSource(GEOMATERIALS_SOURCE).setData({ type: 'FeatureCollection', features: visibleFeatures });
+  const mapIds = jsonThemeMapIds();
+  if (map.getSource(mapIds.source)) {
+    map.getSource(mapIds.source).setData({ type: 'FeatureCollection', features: visibleFeatures });
   }
   renderGeomaterialsControls();
   renderGeomaterialsTabs();
@@ -966,34 +925,14 @@ function geomaterialsFilterBucket(kind, tabKey) {
   const bucket = geomaterialsState.filters[kind];
   return bucket[tabKey] || (bucket[tabKey] = {});
 }
+function geomaterialsSpecialFilterControl() {
+  return geomaterialsState.linkedGroup?.body.querySelector('.json-special-filters');
+}
 function hasGeomaterialsFilters(tabKey, exceptField = null) {
-  const state = geomaterialsState.filters;
-  return Object.entries(state.text[tabKey] || {}).some(([field, value]) => field !== exceptField && value) ||
-    Object.entries(state.range[tabKey] || {}).some(([field, value]) => field !== exceptField && value !== '' && Number.isFinite(Number(value))) ||
-    Object.entries(state.dropdown[tabKey] || {}).some(([field, values]) => field !== exceptField && values?.length);
+  return hasJsonFilters(geomaterialsState.filters, tabKey, exceptField);
 }
 function filterGeomaterialsRows(tabKey, rows, exceptField = null) {
-  const state = geomaterialsState.filters;
-  const text = state.text[tabKey] || {};
-  const range = state.range[tabKey] || {};
-  const operators = state.operators[tabKey] || {};
-  const dropdown = state.dropdown[tabKey] || {};
-  return rows.filter(row => {
-    for (const [field, query] of Object.entries(text)) {
-      if (field !== exceptField && query && !String(row[field] ?? '').toLowerCase().includes(query.toLowerCase())) return false;
-    }
-    for (const [field, threshold] of Object.entries(range)) {
-      if (field === exceptField || threshold === '' || !Number.isFinite(Number(threshold))) continue;
-      const value = Number(row[field]);
-      if (!Number.isFinite(value)) return false;
-      const operator = operators[field] || geomaterialsConfig().rangeFilterColumns[field];
-      if (operator === 'gte' ? value < Number(threshold) : value > Number(threshold)) return false;
-    }
-    for (const [field, values] of Object.entries(dropdown)) {
-      if (field !== exceptField && values?.length && !values.includes(String(row[field] ?? ''))) return false;
-    }
-    return true;
-  });
+  return filterJsonRows(rows, tabKey, geomaterialsState.filters, geomaterialsConfig(), exceptField);
 }
 function geomaterialsDropdownRows(tabKey, field) {
   const config = geomaterialsConfig();
@@ -1015,7 +954,8 @@ function geomaterialsDropdownRows(tabKey, field) {
 }
 function renderGeomaterialsControls() {
   const config = geomaterialsConfig();
-  const special = $('jsonSpecialFilters');
+  const special = geomaterialsSpecialFilterControl();
+  if (!special) return;
   special.replaceChildren();
   const specialSelect = document.createElement('select');
   specialSelect.className = 'theme-select';

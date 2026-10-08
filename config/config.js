@@ -218,6 +218,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
       overlays: ['esri_world_imagery'] },
     { name: 'Geomaterials', 
       jsonTheme: 'geomaterials', 
+      jsonConfig: 'config/config_geomaterials.js',
       groups: ['Geology WMS'] },
    // { name: 'All layers' }
   ],

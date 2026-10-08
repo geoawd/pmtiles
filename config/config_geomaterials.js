@@ -1,4 +1,5 @@
-window.GEOMATERIALS_CONFIG = {
+export default {
+    id: 'geomaterials',
     title: 'Geomaterials',
     deploymentId: 'geomaterials',
     dataDirectory: 'data/geomaterials/',
@@ -22,6 +23,8 @@ window.GEOMATERIALS_CONFIG = {
     ],
     mapCenter: [54.62, -6.39],
     mapZoom: 8,
+    legendTitle: 'Borehole depth',
+    filterGroupTitle: 'Quick Filters/Results Table',
     clustering: false,
     truncateCells: true,
     tabs: [

@@ -97,6 +97,23 @@ map.on('mousemove', e => {
 // ---------- Menu ----------
 let tool = null;
 const isMobile = () => matchMedia('(max-width: 700px)').matches;
+let thirdPartyNoticesRequest = null;
+function loadThirdPartyNotices() {
+  if (thirdPartyNoticesRequest) return thirdPartyNoticesRequest;
+  const content = $('thirdPartyNotices');
+  content.textContent = 'Loading notices...';
+  thirdPartyNoticesRequest = fetch('notices.txt')
+    .then(response => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.text();
+    })
+    .then(text => { content.textContent = text; })
+    .catch(() => {
+      content.textContent = 'Third-party notices could not be loaded.';
+      thirdPartyNoticesRequest = null;
+    });
+  return thirdPartyNoticesRequest;
+}
 function openTool(name) {
   tool = name === tool ? null : name;
   document.body.classList.toggle('drawer-open', !!tool);
@@ -104,6 +121,7 @@ function openTool(name) {
   $('legendPage').classList.toggle('active', tool === 'legend');
   $('searchPage').classList.toggle('active', tool === 'search');
   $('aboutPage').classList.toggle('active', tool === 'about');
+  if (tool === 'about') loadThirdPartyNotices();
   if (tool === 'search') { updateSearchFields(); if (!isMobile()) $('searchText').focus(); }
   if (tool && boxMode) setBox(false);
 }
@@ -611,26 +629,108 @@ function showGeomaterialsPopup(event) {
   const feature = event.features?.[0];
   if (!feature) return;
   const config = geomaterialsConfig();
-  const content = document.createElement('div');
+  const primary = config.tabs.find(tab => tab.isPrimary);
+  const id = feature.properties[config.linkField];
+  const content = document.createElement('div'); content.className = 'idwrap';
+  const title = document.createElement('div'); title.className = 'idtitle';
+  title.textContent = String(feature.properties[config.labelField] || id || 'Borehole');
+  content.appendChild(title);
+
+  const details = createGeomaterialsPopupSection('Borehole details', false, content);
   (config.popupFields || []).forEach(field => {
     if (field.type === 'zoomLink') {
       const button = document.createElement('button');
       button.type = 'button';
+      button.className = 'json-popup-zoom';
       button.textContent = field.label || 'Zoom to site';
       button.onclick = () => map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 14) });
-      content.appendChild(button);
+      details.records.appendChild(button);
       return;
     }
     const value = feature.properties[field.field];
     if (value == null || value === '') return;
-    const line = document.createElement('div');
-    if (field.label) line.append(`${field.label}: `);
-    const text = document.createElement(field.bold ? 'strong' : 'span');
-    text.textContent = `${value}${field.suffix || ''}`;
-    line.appendChild(text);
-    content.appendChild(line);
+    const line = document.createElement('div'); line.className = 'arow';
+    const key = document.createElement('div'); key.className = 'akey'; key.textContent = field.label || field.field;
+    const valueCell = geomaterialsCell(feature.properties, primary.key, field.field);
+    valueCell.className = 'aval';
+    if (field.bold) {
+      const strong = document.createElement('strong');
+      while (valueCell.firstChild) strong.appendChild(valueCell.firstChild);
+      valueCell.appendChild(strong);
+    }
+    if (field.suffix) valueCell.append(` ${field.suffix.trim()}`);
+    line.append(key, valueCell); details.records.appendChild(line);
   });
-  new maplibregl.Popup().setLngLat(feature.geometry.coordinates).setDOMContent(content).addTo(map);
+  content.appendChild(details.section);
+
+  config.tabs.filter(tab => !tab.isPrimary).forEach(tab => {
+    const rows = (geomaterialsState.visibleRows[tab.key] || []).filter(row =>
+      String(row[config.linkField]) === String(id)
+    );
+    if (!rows.length) return;
+    const section = createGeomaterialsPopupSection(`${tab.label} (${rows.length})`, true, content);
+    let current = 0;
+    let pageLabel = null;
+    if (rows.length > 1) {
+      const pager = document.createElement('div'); pager.className = 'pophead';
+      const previous = document.createElement('button'); previous.type = 'button'; previous.className = 'nav';
+      previous.textContent = '\u25c0'; previous.setAttribute('aria-label', `Previous ${tab.label} result`);
+      pageLabel = document.createElement('span');
+      const next = document.createElement('button'); next.type = 'button'; next.className = 'nav';
+      next.textContent = '\u25b6'; next.setAttribute('aria-label', `Next ${tab.label} result`);
+      previous.onclick = () => { current = (current + rows.length - 1) % rows.length; renderPage(); };
+      next.onclick = () => { current = (current + 1) % rows.length; renderPage(); };
+      pager.append(previous, pageLabel, next);
+      section.body.appendChild(pager);
+    }
+    const renderPage = () => {
+      const row = rows[current];
+      section.records.replaceChildren();
+      if (pageLabel) pageLabel.textContent = `${current + 1} of ${rows.length}`;
+      Object.entries(row).filter(([field, value]) =>
+        !config.hiddenColumns.includes(field) && value !== null && value !== undefined && value !== ''
+      ).forEach(([field]) => {
+        const line = document.createElement('div'); line.className = 'arow';
+        const key = document.createElement('div'); key.className = 'akey'; key.textContent = field;
+        const value = geomaterialsCell(row, tab.key, field); value.className = 'aval';
+        line.append(key, value); section.records.appendChild(line);
+      });
+    };
+    renderPage();
+    content.appendChild(section.section);
+  });
+  new maplibregl.Popup({ maxWidth: '360px', className: 'idpop' })
+    .setLngLat(feature.geometry.coordinates).setDOMContent(content).addTo(map);
+}
+function createGeomaterialsPopupSection(label, collapsed, accordionRoot) {
+  const section = document.createElement('section');
+  section.className = `idsec${collapsed ? ' collapsed' : ''}`;
+  const heading = document.createElement('div'); heading.className = 'idhead';
+  heading.tabIndex = 0; heading.setAttribute('role', 'button');
+  heading.setAttribute('aria-expanded', String(!collapsed));
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); arrow.setAttribute('viewBox', '0 0 24 24');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', 'm6 9 6 6 6-6'); arrow.appendChild(path);
+  const text = document.createElement('span'); text.className = 'idname'; text.textContent = label;
+  heading.append(arrow, text);
+  const body = document.createElement('div'); body.className = 'idbody';
+  const records = document.createElement('div'); records.className = 'idtab';
+  body.appendChild(records);
+  const toggle = () => {
+    const expand = section.classList.contains('collapsed');
+    if (expand) accordionRoot.querySelectorAll('.idsec:not(.collapsed)').forEach(open => {
+      if (open === section) return;
+      open.classList.add('collapsed');
+      open.querySelector('.idhead')?.setAttribute('aria-expanded', 'false');
+    });
+    section.classList.toggle('collapsed', !expand);
+    heading.setAttribute('aria-expanded', String(expand));
+  };
+  heading.onclick = toggle;
+  heading.onkeydown = event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+  };
+  section.append(heading, body);
+  return { section, body, records };
 }
 function loadGeomaterialsData() {
   if (geomaterialsState.loaded) return Promise.resolve();
@@ -726,7 +826,7 @@ function updateGeomaterialsLegend(active) {
       const label = document.createElement('span'); label.textContent = item.label;
       row.append(swatch, label); depth.body.appendChild(row);
     });
-    const linked = addGroup(legend, 'Linked data');
+    const linked = addGroup(legend, 'Quick Filters/Results Table');
     linked.section = linked.body.closest('.lgroup');
     linked.section.id = 'geomaterialsFilterLegend';
     linked.section.classList.add('json-link-filters');
@@ -865,7 +965,7 @@ function renderGeomaterialsControls() {
   const allOption = document.createElement('option'); allOption.value = ''; allOption.textContent = 'All boreholes';
   specialSelect.appendChild(allOption);
   config.tabs.filter(tab => tab.specialFilter).forEach(tab => {
-    const option = document.createElement('option'); option.value = tab.key; option.textContent = `With ${tab.specialFilter}`;
+    const option = document.createElement('option'); option.value = tab.key; option.textContent = `Boreholes with ${tab.specialFilter}`;
     specialSelect.appendChild(option);
   });
   specialSelect.value = geomaterialsState.specialFilter || '';
@@ -964,6 +1064,7 @@ function positionOpenGeomaterialsDropdown() {
 }
 function renderGeomaterialsTabs() {
   const config = geomaterialsConfig();
+  closeGeomaterialsHelp();
   const tabs = $('tabs'); tabs.replaceChildren();
   const available = config.tabs.filter(tab => !geomaterialsState.hiddenTabs.has(tab.key));
   if (!available.some(tab => tab.key === geomaterialsState.tab)) geomaterialsState.tab = available[0]?.key || config.tabs[0].key;
@@ -975,6 +1076,27 @@ function renderGeomaterialsTabs() {
     button.textContent = `${tab.label} (${rows.length})`;
     button.onclick = () => { geomaterialsState.tab = tab.key; renderGeomaterialsControls(); renderGeomaterialsTabs(); renderGeomaterialsTable(); };
     group.appendChild(button);
+    if (tab.help?.content) {
+      const help = document.createElement('button');
+      help.type = 'button'; help.className = 'json-tab-help'; help.textContent = '?';
+      help.title = tab.help.title || `Help for ${tab.label}`;
+      help.setAttribute('aria-label', help.title);
+      help.setAttribute('aria-haspopup', 'dialog');
+      help.setAttribute('aria-expanded', 'false');
+      help.onpointerenter = () => showGeomaterialsHelp(tab, help);
+      help.onpointerleave = scheduleGeomaterialsHelpClose;
+      help.onfocus = () => showGeomaterialsHelp(tab, help);
+      help.onblur = scheduleGeomaterialsHelpClose;
+      help.onclick = event => {
+        event.stopPropagation();
+        if (geomaterialsHelpPopover?.trigger === help && geomaterialsHelpPopover.pinned) closeGeomaterialsHelp();
+        else showGeomaterialsHelp(tab, help, true);
+      };
+      help.onkeydown = event => {
+        if (event.key === 'Escape') { event.preventDefault(); closeGeomaterialsHelp(true); }
+      };
+      group.appendChild(help);
+    }
     if (tab.hideable) {
       const hide = document.createElement('button'); hide.type = 'button'; hide.className = 'json-tab-hide';
       hide.textContent = 'x'; hide.title = `Hide ${tab.label}`; hide.setAttribute('aria-label', `Hide ${tab.label}`);
@@ -1137,8 +1259,6 @@ function renderGeomaterialsTable() {
   if (sort) rows.sort((a, b) => String(a[sort.field] ?? '').localeCompare(String(b[sort.field] ?? ''), undefined, { numeric: true }) * (sort.direction === 'desc' ? -1 : 1));
   const columns = Object.keys((geomaterialsState.rows[tab.key] || [])[0] || {}).filter(field => !config.hiddenColumns.includes(field));
   const filterControls = renderGeomaterialsColumnFilters();
-  const helpButton = document.createElement('button'); helpButton.type = 'button'; helpButton.textContent = '?'; helpButton.title = tab.help?.title || tab.label;
-  helpButton.onclick = () => showGeomaterialsHelp(tab);
   const headerRow = document.createElement('tr');
   const zoomHead = document.createElement('th'); zoomHead.textContent = 'Zoom'; zoomHead.title = 'Zoom to record'; headerRow.appendChild(zoomHead);
   columns.forEach(field => {
@@ -1159,7 +1279,6 @@ function renderGeomaterialsTable() {
     };
     headerRow.appendChild(th);
   });
-  const helpHead = document.createElement('th'); helpHead.appendChild(helpButton); headerRow.appendChild(helpHead);
   const filterRow = document.createElement('tr'); filterRow.className = 'json-filter-row';
   filterRow.appendChild(document.createElement('th'));
   columns.forEach(field => {
@@ -1168,7 +1287,6 @@ function renderGeomaterialsTable() {
     if (control) th.appendChild(control);
     filterRow.appendChild(th);
   });
-  filterRow.appendChild(document.createElement('th'));
   const wrap = $('tablewrap'); wrap.replaceChildren();
   const table = document.createElement('table');
   const head = table.createTHead(); head.append(headerRow, filterRow);
@@ -1227,10 +1345,10 @@ function renderGeomaterialsVirtualSlice(tabKey, columns) {
     const spacer = body.insertRow(); const cell = spacer.insertCell(); cell.colSpan = columns.length + 1; cell.style.height = `${(rows.length - last) * rowHeight}px`; cell.style.padding = '0';
   }
 }
-function showGeomaterialsHelp(tab) {
-  const popup = document.createElement('div');
-  const title = document.createElement('strong'); title.textContent = tab.help?.title || tab.label; popup.appendChild(title);
+let geomaterialsHelpPopover = null;
+function geomaterialsHelpContent(tab) {
   const content = document.createElement('div');
+  content.className = 'json-help-content';
   const parsed = new DOMParser().parseFromString(tab.help?.content || '', 'text/html');
   const allowed = new Set(['P', 'UL', 'OL', 'LI', 'STRONG', 'EM', 'A', 'BR']);
   const copy = (source, target) => [...source.childNodes].forEach(node => {
@@ -1244,9 +1362,71 @@ function showGeomaterialsHelp(tab) {
       copy(node, element); target.appendChild(element);
     } else copy(node, target);
   });
-  copy(parsed.body, content); popup.appendChild(content);
-  new maplibregl.Popup().setLngLat(map.getCenter()).setDOMContent(popup).addTo(map);
+  copy(parsed.body, content);
+  return content;
 }
+function positionGeomaterialsHelpPopover() {
+  const state = geomaterialsHelpPopover;
+  if (!state) return;
+  const bounds = state.trigger.getBoundingClientRect();
+  const popover = state.element;
+  const width = Math.min(320, innerWidth - 24);
+  const height = popover.getBoundingClientRect().height;
+  popover.style.left = `${Math.max(12, Math.min(bounds.left, innerWidth - width - 12))}px`;
+  const below = bounds.bottom + 8;
+  popover.style.top = `${Math.max(12, below + height <= innerHeight - 12 ? below : bounds.top - height - 8)}px`;
+}
+function showGeomaterialsHelp(tab, trigger, pin = false) {
+  if (geomaterialsHelpPopover?.trigger === trigger) {
+    clearTimeout(geomaterialsHelpPopover.closeTimer);
+    geomaterialsHelpPopover.pinned ||= pin;
+    return;
+  }
+  closeGeomaterialsHelp();
+  const element = document.createElement('section');
+  element.className = 'json-help-popover';
+  element.setAttribute('role', 'dialog');
+  element.setAttribute('aria-label', tab.help?.title || tab.label);
+  element.id = 'geomaterialsHelpPopover';
+  const header = document.createElement('header');
+  const title = document.createElement('strong'); title.textContent = tab.help?.title || tab.label;
+  const close = document.createElement('button'); close.type = 'button'; close.className = 'json-help-close';
+  close.textContent = '×'; close.setAttribute('aria-label', 'Close help');
+  close.onclick = () => closeGeomaterialsHelp(true);
+  header.append(title, close);
+  element.append(header, geomaterialsHelpContent(tab));
+  element.onpointerenter = () => clearTimeout(geomaterialsHelpPopover?.closeTimer);
+  element.onpointerleave = scheduleGeomaterialsHelpClose;
+  element.onfocusin = () => clearTimeout(geomaterialsHelpPopover?.closeTimer);
+  element.onfocusout = event => {
+    if (!element.contains(event.relatedTarget)) scheduleGeomaterialsHelpClose();
+  };
+  document.body.appendChild(element);
+  geomaterialsHelpPopover = { element, trigger, pinned: pin, closeTimer: null };
+  trigger.setAttribute('aria-expanded', 'true');
+  trigger.setAttribute('aria-controls', element.id);
+  positionGeomaterialsHelpPopover();
+}
+function scheduleGeomaterialsHelpClose() {
+  const state = geomaterialsHelpPopover;
+  if (!state || state.pinned) return;
+  clearTimeout(state.closeTimer);
+  state.closeTimer = setTimeout(() => closeGeomaterialsHelp(), 180);
+}
+function closeGeomaterialsHelp(returnFocus = false) {
+  const state = geomaterialsHelpPopover;
+  if (!state) return;
+  clearTimeout(state.closeTimer);
+  state.trigger.setAttribute('aria-expanded', 'false');
+  state.trigger.removeAttribute('aria-controls');
+  state.element.remove();
+  geomaterialsHelpPopover = null;
+  if (returnFocus) state.trigger.focus();
+}
+document.addEventListener('pointerdown', event => {
+  if (geomaterialsHelpPopover && !geomaterialsHelpPopover.element.contains(event.target) &&
+      !geomaterialsHelpPopover.trigger.contains(event.target)) closeGeomaterialsHelp();
+});
 function clearGeomaterialsFilters() {
   geomaterialsState.filters.text = {};
   geomaterialsState.filters.range = {};

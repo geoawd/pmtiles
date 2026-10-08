@@ -17,6 +17,7 @@ window.GEOMATERIALS_CONFIG = {
         { field: 'BOREHOLE ID' },
         { field: 'COMPANY NAME' },
         { field: 'TOTAL DEPTH METRES', label: 'Total Depth', suffix: ' M' },
+        { field: 'BOREHOLE_LOG_URL' },
         { type: 'zoomLink', label: 'Zoom to site' }
     ],
     mapCenter: [54.62, -6.39],

@@ -2,12 +2,12 @@
 
 ## Runtime
 
-This is a static browser application served over HTTP; it has no build step. `index.html` loads the vendor libraries, then `config/geomaterials.js` and `config/config.js`, then `js/styles.js`. The style loader fetches configured MapLibre styles, merges their vector sources/layers, and starts `js/app.js` as a module. `js/app.js` owns the map, layer controls, theme switching, search, popups, and results panels.
+This is a static browser application served over HTTP; it has no build step. `index.html` loads the vendor libraries, then `config/config_geomaterials.js` and `config/config.js`, then `js/styles.js`. The style loader fetches configured MapLibre styles, merges their vector sources/layers, and starts `js/app.js` as a module. `js/app.js` owns the map, layer controls, theme switching, search, popups, and results panels.
 
 ## Directory Layout
 
 - `config/config.js`: global `window.CONFIG` for map defaults, vector datasets, basemaps, raster overlays, themes, legend metadata, search, and terrain.
-- `config/geomaterials.js`: `window.GEOMATERIALS_CONFIG` for the JSON-backed Geomaterials theme: data paths, schemas, filters, links, popups, and depth symbology.
+- `config/config_geomaterials.js`: `window.GEOMATERIALS_CONFIG` for the JSON-backed Geomaterials theme: data paths, schemas, filters, links, popups, and depth symbology.
 - `config/*.json`: MapLibre styles and deployment/link configuration.
 - `data/layers.pmtiles`: vector tile archive used by the configured styles.
 - `data/geomaterials/*.json`: Geomaterials tables. Each file contains an array at the configured `dataKey`.
@@ -29,7 +29,7 @@ MapLibre style JSON files reference the vector tiles. If a style is moved, updat
 
 ## Geomaterials JSON Data
 
-Edit `config/geomaterials.js` to configure the Geomaterials theme. Each `tabs` entry specifies a JSON filename, its top-level `dataKey`, display name, and optional behavior. One tab is primary; its records provide the map geometry and IDs. Sibling records join to primary records by `linkField`.
+Edit `config/config_geomaterials.js` to configure the Geomaterials theme. Each `tabs` entry specifies a JSON filename, its top-level `dataKey`, display name, and optional behavior. One tab is primary; its records provide the map geometry and IDs. Sibling records join to primary records by `linkField`.
 
 The primary geometry is WKT in the configured projection. Valid borehole points are projected into WGS84 and rendered by MapLibre. On map movement, the current bounds scope the primary IDs; special filters and persistent column filters then intersect those IDs across datasets. Text/range filters use AND semantics, selected values within one dropdown use OR semantics, and the final intersected IDs drive the map and tables.
 

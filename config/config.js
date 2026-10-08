@@ -149,16 +149,19 @@ window.CONFIG = {
   search: { countrycodes: 'gb,ie', limit: 5 },   // place search (OpenStreetMap Nominatim); grid refs need no service
 
 
-  // Themes: pick which layers are on. `layers` = legend layer names (as in the legend, with underscores),
-  // `overlays` = overlay ids. Anything not listed is switched off. A theme with neither key shows everything.
+  // Themes: pick which layers are on. `layers` = source-layer names,
+  // `groups` = style groups, overlay groups, or named themes; `datasets` = dataset ids,
+  // and `overlays` = overlay ids. Anything not listed is switched off. A theme with no keys shows everything.
     themes: [
     { name: 'Boreholes', layers: ['Boreholes', 'Site_Reports'], overlays: ['esri_world_imagery'] },
     { name: 'Geology', layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] },
-    { name: 'Geology WMS', overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10k_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
+    { name: 'Geology WMS', overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10K_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
     { name: 'Geophysics', overlays: ['gsni_pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
    // { name: 'Geochemistry', overlays: ['esri_world_imagery'] },
     { name: 'Hydrogeology', overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer','esri_world_imagery'] },
-    { name: 'Geomaterials', jsonTheme: 'geomaterials', layers: [], overlays: [] },
+    // Groups may name a style group, configured overlay group, or named theme.
+    // Examples: ['Geotechnical'], ['Geology (10K) WMS'], or ['Geology WMS'].
+    { name: 'Geomaterials', jsonTheme: 'geomaterials', groups: ['Geology WMS'] },
    // { name: 'Minerals', overlays: ['esri_world_imagery'] },
    // { name: 'All layers' }
   ],

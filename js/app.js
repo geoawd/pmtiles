@@ -498,6 +498,19 @@ const geomaterialsState = {
   deployments: [],
   deploymentLinks: []
 };
+function resolveThemeGroup(name) {
+  const namedTheme = (CONFIG.themes || []).find(theme => theme.name === name);
+  const datasets = namedTheme?.datasets || [];
+  const overlays = (CONFIG.overlays || []).filter(overlay => overlay.group === name).map(overlay => overlay.id);
+  return {
+    layers: [
+      ...((window.LEGEND_GROUP_LAYERS || {})[name] || []),
+      ...(namedTheme?.layers || []),
+      ...datasets.flatMap(id => (window.DATASET_LAYERS || {})[id] || [])
+    ],
+    overlays: [...overlays, ...(namedTheme?.overlays || [])]
+  };
+}
 function setupThemes() {
   const list = CONFIG.themes || [];
   $('themeBar').hidden = !list.length;
@@ -506,8 +519,14 @@ function setupThemes() {
   sel.innerHTML = list.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
   const apply = i => {
     const t = list[i];
-    const all = !t.layers && !t.overlays && !t.datasets;
-    const themeNames = [...(t.layers || []), ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || [])];
+    const all = !t.layers && !t.overlays && !t.datasets && !t.groups;
+    const groupMembers = (t.groups || []).map(resolveThemeGroup);
+    const themeNames = [
+      ...(t.layers || []),
+      ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || []),
+      ...groupMembers.flatMap(group => group.layers)
+    ];
+    const themeOverlays = [...(t.overlays || []), ...groupMembers.flatMap(group => group.overlays)];
     themeLayers = all ? null : themeNames;
     // Theme membership gates rendering without changing the user's checkbox state.
     Object.entries(ctl.data).forEach(([sl, o]) => {
@@ -515,7 +534,7 @@ function setupThemes() {
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
     Object.entries(ctl.ov).forEach(([id, o]) => {
-      const inTheme = all || (t.overlays || []).includes(id);
+      const inTheme = all || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
     document.querySelectorAll('#legend .lgroup').forEach(g => {   // hide headings with nothing left under them
@@ -1557,6 +1576,12 @@ function buildLegend() {
   const st = map.getStyle();
   const sourceLayers = [...new Set(st.layers.filter(l => l['source-layer']).map(l => l['source-layer']))];
   const groups = (st.metadata && st.metadata['mapsplat:legend-groups']) || [{ name: 'Layers', layers: sourceLayers }];
+  window.LEGEND_GROUP_LAYERS = {};
+  groups.forEach(group => {
+    window.LEGEND_GROUP_LAYERS[group.name] = [...new Set([
+      ...(window.LEGEND_GROUP_LAYERS[group.name] || []), ...(group.layers || [])
+    ])];
+  });
   const lg = $('legend');
   lg.innerHTML = '';
   groups.forEach(g => {

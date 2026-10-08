@@ -840,7 +840,9 @@ async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
         const out = new Float32Array(width * height);
         for (let i = 0; i < out.length; i++) {
           const j = i * 4;
-          out[i] = px[j + 3] < 255 ? NaN : (px[j] * 65536 + px[j + 1] * 256 + px[j + 2]) * 0.1 - 10000;
+          const raw = px[j] * 65536 + px[j + 1] * 256 + px[j + 2];
+          // The COG protocol encodes no-data as an opaque 0 m; left in, it contours every level along the DEM edge.
+          out[i] = px[j + 3] < 255 || raw === 100000 ? NaN : raw * 0.1 - 10000;
         }
         return { width, height, data: out };
       };

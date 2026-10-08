@@ -822,6 +822,9 @@ function setGeomaterialsTheme(active) {
   document.querySelector('#rail [data-tool="search"]').disabled = active;
   if (active && boxMode) setBox(false);
   if (active && tool === 'search') openTool('search');
+  if (active && !wasActive && isMobile()) {
+    toast('This view is not optimised for mobile devices. Please view it on a desktop.');
+  }
   updateGeomaterialsLegend(active);
   setThemeVisibility([GEOMATERIALS_LAYER, `${GEOMATERIALS_LAYER}-clusters`, `${GEOMATERIALS_LAYER}-cluster-count`], active);
   if (active) {

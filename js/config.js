@@ -176,7 +176,7 @@ window.CONFIG = {
   terrain: {
     models: [
       { id: '10m', name: 'Open 10m DEM', cog: 'https://data.better-open-data.com/lidar_zstd/DTM.tif', tileSize: 512 },
-      { id: 'local', name: 'Local 10m DEM', cog: 'http://localhost:8000/DTM_local.tif', tileSize: 512, maxzoom: 24 }
+      { id: 'local', name: 'Linford 20CM DEM', cog: 'https://data.better-open-data.com/lidar_zstd/Linford_DTM_3857.tif', tileSize: 256, maxzoom: 24 }
     ],
     defaultModel: '10m', // selected initially; defaults to the first model
     exaggeration: 1.0,         // vertical exaggeration in the 3D view

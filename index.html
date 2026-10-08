@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <title>MapLibre Demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.css">
+<link rel="modulepreload" href="https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.mjs" integrity="sha384-tG0qQdL7veKvVoyu6PbnmddDls/OVkTjaK9oVY5eq9afBA6zYptFui69Dx57duAh" crossorigin="anonymous">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.css" integrity="sha384-yFNc3bs28S14jOJo1ZO9SnLiAmtyY2a3H9be8GkLMpDGlO5r1zZNP8fYu+fOCE/w" crossorigin="anonymous">
 <link rel="stylesheet" href="css/app.css">
 <style id="pageStyle"></style>
 </head>
@@ -109,11 +110,11 @@
 </div>
 
 <div id="printView" aria-hidden="true"></div>
-<script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
-<script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.10.0/dist/index.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js"></script>
-<script src="https://unpkg.com/maplibre-contour@0.1.1/dist/index.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js" integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.10.0/dist/index.js" integrity="sha384-t1PE7x+ltzMRnLBdPzuY56UPewCP9ZGEFqEuaEa579Mq61Q0psO4LM+lNUFP5WqP" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.22.0/proj4.js" integrity="sha384-RCBbAm8IhfOOoFV7vqUhspSb+BCSvVSd84WJpv5VMq4rNiXJ88VMHtndxQntlbnd" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/maplibre-contour@0.1.1/dist/index.min.js" integrity="sha384-f2gK0HoDkM64k6ZBnbv6ZuvMzDqPOwrfTaIU9iv2BN7CWHyyTQJkPC9AoRNuuV39" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
 <script src="config/config_geomaterials.js"></script>
 <script src="config/config.js"></script>
 <script src="js/styles.js"></script>

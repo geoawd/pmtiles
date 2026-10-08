@@ -114,6 +114,9 @@ function loadThirdPartyNotices() {
     });
   return thirdPartyNoticesRequest;
 }
+///////////////////////////////////////////////////////////////////////////
+// Opens the selected side drawer tool and updates the active rail button.
+///////////////////////////////////////////////////////////////////////////
 function openTool(name) {
   tool = name === tool ? null : name;
   document.body.classList.toggle('drawer-open', !!tool);
@@ -134,6 +137,9 @@ function dataLayers() {
   const st = map.getStyle();
   return st.layers.filter(l => l.source && st.sources[l.source] && st.sources[l.source].type === 'vector').map(l => l.id);
 }
+///////////////////////////////////////////////////////////////////////////
+// Queries and deduplicates rendered vector features within a screen geometry.
+///////////////////////////////////////////////////////////////////////////
 function queryData(geom) {
   const layers = dataLayers();
   if (!layers.length) return [];
@@ -511,6 +517,9 @@ function resolveThemeGroup(name) {
     overlays: [...overlays, ...(namedTheme?.overlays || [])]
   };
 }
+///////////////////////////////////////////////////////////////////////////
+// Applies configured theme visibility to vector layers, overlays, and JSON data.
+///////////////////////////////////////////////////////////////////////////
 function setupThemes() {
   const list = CONFIG.themes || [];
   $('themeBar').hidden = !list.length;
@@ -645,6 +654,9 @@ function addGeomaterialsMapLayers() {
   [GEOMATERIALS_LAYER, `${GEOMATERIALS_LAYER}-clusters`, `${GEOMATERIALS_LAYER}-cluster-count`]
     .filter(id => map.getLayer(id)).forEach(id => registerLayerVisibility(id, true));
 }
+///////////////////////////////////////////////////////////////////////////
+// Shows borehole details and filtered, expandable sibling results on map click.
+///////////////////////////////////////////////////////////////////////////
 function showGeomaterialsPopup(event) {
   const feature = event.features?.[0];
   if (!feature) return;
@@ -752,6 +764,9 @@ function createGeomaterialsPopupSection(label, collapsed, accordionRoot) {
   section.append(heading, body);
   return { section, body, records };
 }
+///////////////////////////////////////////////////////////////////////////
+// Loads and joins configured Geomaterials JSON datasets once for the theme.
+///////////////////////////////////////////////////////////////////////////
 function loadGeomaterialsData() {
   if (geomaterialsState.loaded) return Promise.resolve();
   if (geomaterialsState.loading) return geomaterialsState.loading;
@@ -807,6 +822,9 @@ function loadGeomaterialsData() {
   });
   return geomaterialsState.loading;
 }
+///////////////////////////////////////////////////////////////////////////
+// Activates the Geomaterials map layer, results panel, and theme controls.
+///////////////////////////////////////////////////////////////////////////
 function setGeomaterialsTheme(active) {
   const wasActive = geomaterialsState.active;
   geomaterialsState.active = active;
@@ -881,6 +899,9 @@ function updateGeomaterialsLegend(active) {
   legend.prepend(depthGroup.section);
   legend.insertBefore(linkedGroup.section, depthGroup.section.nextSibling);
 }
+///////////////////////////////////////////////////////////////////////////
+// Recomputes viewport-scoped filters and refreshes Geomaterials map and tables.
+///////////////////////////////////////////////////////////////////////////
 function refreshGeomaterialsResults(reopenPanel = false) {
   if (!geomaterialsState.active) return;
   const focused = document.activeElement?.dataset.jsonFilter;
@@ -1099,6 +1120,9 @@ function positionOpenGeomaterialsDropdown() {
   const top = below + height <= innerHeight - 8 ? below : bounds.top - height - 4;
   panel.style.top = `${Math.max(8, top)}px`;
 }
+///////////////////////////////////////////////////////////////////////////
+// Renders dataset tabs with counts and their configured help controls.
+///////////////////////////////////////////////////////////////////////////
 function renderGeomaterialsTabs() {
   const config = geomaterialsConfig();
   closeGeomaterialsHelp();
@@ -1286,6 +1310,9 @@ function geomaterialsCell(row, tabKey, field) {
   });
   return cellEl;
 }
+///////////////////////////////////////////////////////////////////////////
+// Builds the active dataset table, aligned filters, and sortable headers.
+///////////////////////////////////////////////////////////////////////////
 function renderGeomaterialsTable() {
   const config = geomaterialsConfig();
   const tab = config.tabs.find(item => item.key === geomaterialsState.tab) || config.tabs[0];
@@ -1504,6 +1531,9 @@ function decodeGeomaterialsHash() {
     return JSON.parse(decoded);
   } catch { return null; }
 }
+///////////////////////////////////////////////////////////////////////////
+// Restores validated Geomaterials filters and map position from the URL hash.
+///////////////////////////////////////////////////////////////////////////
 function restoreGeomaterialsState() {
   const saved = decodeGeomaterialsHash();
   if (!saved || typeof saved !== 'object') return;
@@ -1545,6 +1575,9 @@ function restoreGeomaterialsState() {
       Math.abs(center[0]) <= 180 && Math.abs(center[1]) <= 85.051129 &&
       Number.isFinite(zoom) && zoom >= 0 && zoom <= 28) map.jumpTo({ center, zoom });
 }
+///////////////////////////////////////////////////////////////////////////
+// Copies the current Geomaterials filters and map view as a shareable URL.
+///////////////////////////////////////////////////////////////////////////
 async function copyGeomaterialsLink() {
   const state = btoa(unescape(encodeURIComponent(JSON.stringify(geomaterialsShareState()))));
   const url = `${location.origin}${location.pathname}${location.search}#${state}`;
@@ -1555,6 +1588,9 @@ async function copyGeomaterialsLink() {
     window.prompt('Copy this link', url);
   }
 }
+///////////////////////////////////////////////////////////////////////////
+// Exports the current Geomaterials result sets to a multi-sheet workbook.
+///////////////////////////////////////////////////////////////////////////
 function exportGeomaterialsExcel() {
   if (!window.XLSX) return toast('Excel export is unavailable.');
   const config = geomaterialsConfig();
@@ -1574,6 +1610,9 @@ $('jsonClearBtn').onclick = clearGeomaterialsFilters;
 $('jsonCopyBtn').onclick = copyGeomaterialsLink;
 $('jsonExcelBtn').onclick = exportGeomaterialsExcel;
 const inViewGroups = [];
+///////////////////////////////////////////////////////////////////////////
+// Builds vector layer groups and controls from the active MapLibre style.
+///////////////////////////////////////////////////////////////////////////
 function buildLegend() {
   inViewGroups.length = 0;
   const st = map.getStyle();
@@ -1666,6 +1705,9 @@ function buildLegend() {
 
 // ---------- Scale visibility ----------
 let scaleInfo = {}, archiveMax = null;
+///////////////////////////////////////////////////////////////////////////
+// Loads PMTiles and style zoom limits used to describe layer scale visibility.
+///////////////////////////////////////////////////////////////////////////
 async function loadScaleInfo() {
   const st = map.getStyle();
   try {
@@ -1714,6 +1756,9 @@ function updateScaleState() {
 }
 map.on('zoom', updateScaleState);
 // Class-coloured layers with many classes: list only the classes that have features in view (unticked ones stay so they can be re-enabled)
+///////////////////////////////////////////////////////////////////////////
+// Updates data-driven legend classes to reflect features in the current view.
+///////////////////////////////////////////////////////////////////////////
 function updateInView() {
   if (!inViewGroups.length || !map.getStyle()) return;
   const cache = {};
@@ -1802,6 +1847,9 @@ function reverseWithinGroups(entries) {
   });
   return [...groups.values()].flatMap(group => group.slice().reverse());
 }
+///////////////////////////////////////////////////////////////////////////
+// Adds a configured raster overlay or basemap to the MapLibre style.
+///////////////////////////////////////////////////////////////////////////
 function addRasterLayer(w, beforeId) {
   const tiles = Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)];
   const source = { type: 'raster', tileSize: w.tileSize || 256, tiles };
@@ -1949,6 +1997,9 @@ function removeTerrainContours() {
   if (map.getSource(CONTOUR_SOURCE_ID)) map.removeSource(CONTOUR_SOURCE_ID);
   contourDemSource = null;
 }
+///////////////////////////////////////////////////////////////////////////
+// Creates contour sources and layers for the selected elevation model.
+///////////////////////////////////////////////////////////////////////////
 async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
   const generation = ++contourGeneration;
   removeTerrainContours();
@@ -2094,6 +2145,9 @@ function arcgisSupportsQuery(serviceUrl) {
   }
   return arcgisCapabilityCache.get(key);
 }
+///////////////////////////////////////////////////////////////////////////
+// Fetches and applies ArcGIS identify results for overlays visible in the map.
+///////////////////////////////////////////////////////////////////////////
 async function updateArcgisLegendInView() {
   if (!map.getStyle()) return;
   const services = new Map();
@@ -2217,6 +2271,9 @@ function renderArcgisLegend(container, w) {
 }
 map.on('idle', updateArcgisLegendInView);
 map.on('moveend', updateArcgisLegendInView);
+///////////////////////////////////////////////////////////////////////////
+// Builds grouped layer controls for configured raster and terrain overlays.
+///////////////////////////////////////////////////////////////////////////
 function buildOverlayLegend() {
   const lg = $('legend');
   const byGroup = {};
@@ -2292,6 +2349,9 @@ function buildOverlayLegend() {
   });
 }
 
+///////////////////////////////////////////////////////////////////////////
+// Builds the persistent basemap controls from the global configuration.
+///////////////////////////////////////////////////////////////////////////
 function buildBasemapLegend() {
   const entries = validBasemaps();
   if (!entries.length) return;
@@ -2391,6 +2451,9 @@ mapBox.addEventListener('pointerdown', e => {
   document.addEventListener('pointerup', up);
 });
 
+///////////////////////////////////////////////////////////////////////////
+// Runs a vector feature query for a dragged map rectangle and opens results.
+///////////////////////////////////////////////////////////////////////////
 function runSelection(a, b) {
   setBox(false);
   justBoxed = true; setTimeout(() => justBoxed = false, 50);   // stops the drag from also opening a popup
@@ -2407,6 +2470,9 @@ function centreOf(g) {
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
+///////////////////////////////////////////////////////////////////////////
+// Renders vector query results as grouped, selectable feature tables.
+///////////////////////////////////////////////////////////////////////////
 function showTable(feats, label) {
   shown = feats;
   const groups = {};
@@ -2478,6 +2544,9 @@ function updateSearchFields() {
     ? Object.keys(sample.properties).map(f => `<label><input type="checkbox" value="${esc(f)}" checked>${esc(f)}</label>`).join('')
     : '<em class="hint">' + (layer ? 'No fields yet – make sure this layer is visible in the current view.' : 'This theme has no searchable layers.') + '</em>';
 }
+///////////////////////////////////////////////////////////////////////////
+// Searches selected feature properties in the current map view.
+///////////////////////////////////////////////////////////////////////////
 function runSearch() {
   const text = $('searchText').value.trim().toLowerCase();
   if (!text) { $('searchText').focus(); return; }
@@ -2523,6 +2592,9 @@ function goTo(lngLat, label, bbox) {
   if (bbox) map.fitBounds(bbox, { padding: 40, maxZoom: 17 }); else map.flyTo({ center: lngLat, zoom: 16 });
   if (isMobile() && tool) openTool(tool);
 }
+///////////////////////////////////////////////////////////////////////////
+// Resolves a place name, coordinate, or Irish Grid reference and navigates there.
+///////////////////////////////////////////////////////////////////////////
 async function geoSearch() {
   const q = $('geoIn').value.trim();
   if (!q) { geoList.hidden = true; return; }
@@ -2595,6 +2667,9 @@ map.on('error', async e => {
 });
 let terrainOn = false, terrainCb = null, terrainGroupHidden = false;   // checkbox selection is preserved when its group is hidden
 let terrainExaggeration = Math.min(10, Math.max(1, Number((CONFIG.terrain || {}).exaggeration) || 1));
+///////////////////////////////////////////////////////////////////////////
+// Switches the active elevation model and rebuilds dependent terrain layers.
+///////////////////////////////////////////////////////////////////////////
 function setTerrainModel(id) {
   const model = terrainModels.find(m => m.id === id);
   if (!model || model === activeTerrainModel) return;
@@ -2618,6 +2693,9 @@ function setTerrainModel(id) {
   }
   setupTerrainContours(model, terrainLayerBeforeId);
 }
+///////////////////////////////////////////////////////////////////////////
+// Enables or disables 3D terrain and synchronizes map pitch and controls.
+///////////////////////////////////////////////////////////////////////////
 function setTerrain3D(on, syncCheckbox = true, tilt = true) {
   const tc = CONFIG.terrain;
   if (!tc || !activeTerrainModel || !map.getSource(activeTerrainModel.sourceId)) { if (terrainCb) terrainCb.checked = false; return toast('3D view needs a DTM configured in CONFIG.terrain.models.'); }
@@ -2684,6 +2762,9 @@ function buildKey() {
   });
   return html;
 }
+///////////////////////////////////////////////////////////////////////////
+// Captures the current map and layer key, then opens the print layout.
+///////////////////////////////////////////////////////////////////////////
 async function printMap() {
   let url;
   try { url = await mapImage(); } catch (e) { alert('The map could not be captured for printing (a layer may not allow image export).'); return; }

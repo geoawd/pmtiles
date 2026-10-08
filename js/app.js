@@ -484,6 +484,7 @@ const geomaterialsState = {
   visibleRows: {},
   filters: { text: {}, range: {}, operators: {}, dropdown: {} },
   specialFilter: null,
+  linkedVisible: true,
   openDropdown: null,
   dropdownSearch: {},
   filterFocus: null,
@@ -836,8 +837,19 @@ function updateGeomaterialsLegend(active) {
     linked.onVisibilityChange = visible => {
       geomaterialsState.panelClosed = !visible;
       document.body.classList.toggle('has-table', visible && geomaterialsState.active);
-      map.resize();
     };
+    const eye = linked.section.querySelector('.lgeye');
+    linked.setVisibility = visible => {
+      geomaterialsState.linkedVisible = visible;
+      eye.innerHTML = visible ? ICON_EYE : ICON_EYE_OFF;
+      const label = `${visible ? 'Hide' : 'Show'} Quick Filters/Results Table`;
+      eye.title = label;
+      eye.setAttribute('aria-label', label);
+      eye.setAttribute('aria-pressed', String(!visible));
+      linked.section.classList.toggle('group-hidden', !visible);
+      linked.onVisibilityChange(visible);
+    };
+    eye.onclick = () => linked.setVisibility(!geomaterialsState.linkedVisible);
     geomaterialsState.depthGroup = depth;
     geomaterialsState.linkedGroup = linked;
   }
@@ -847,7 +859,7 @@ function updateGeomaterialsLegend(active) {
   legend.prepend(depthGroup.section);
   legend.insertBefore(linkedGroup.section, depthGroup.section.nextSibling);
 }
-function refreshGeomaterialsResults() {
+function refreshGeomaterialsResults(reopenPanel = false) {
   if (!geomaterialsState.active) return;
   const focused = document.activeElement?.dataset.jsonFilter;
   if (focused) {
@@ -898,6 +910,9 @@ function refreshGeomaterialsResults() {
   renderGeomaterialsTabs();
   renderGeomaterialsTable();
   $('count').textContent = `${finalIds.size} boreholes in view`;
+  if (reopenPanel && geomaterialsState.panelClosed && geomaterialsState.linkedGroup) {
+    geomaterialsState.linkedGroup.setVisibility(true);
+  }
   const linkedVisible = !geomaterialsState.linkedGroup?.section.classList.contains('group-hidden');
   document.body.classList.toggle('has-table', !geomaterialsState.panelClosed && linkedVisible);
 }
@@ -969,26 +984,26 @@ function renderGeomaterialsControls() {
     specialSelect.appendChild(option);
   });
   specialSelect.value = geomaterialsState.specialFilter || '';
-  specialSelect.onchange = () => { geomaterialsState.specialFilter = specialSelect.value || null; refreshGeomaterialsResults(); };
+  specialSelect.onchange = () => { geomaterialsState.specialFilter = specialSelect.value || null; refreshGeomaterialsResults(true); };
   special.appendChild(specialSelect);
   const pills = $('jsonActiveFilters');
   pills.replaceChildren();
   if (geomaterialsState.specialFilter) {
     const tab = config.tabs.find(item => item.key === geomaterialsState.specialFilter);
     appendGeomaterialsPill(pills, `With ${tab.specialFilter}`, () => {
-      geomaterialsState.specialFilter = null; refreshGeomaterialsResults();
+      geomaterialsState.specialFilter = null; refreshGeomaterialsResults(true);
     });
   }
   config.tabs.forEach(tab => {
     const state = geomaterialsState.filters;
     Object.entries(state.text[tab.key] || {}).forEach(([field, value]) => value && appendGeomaterialsPill(pills, `${tab.label}: ${field} ${value}`, () => {
-      delete state.text[tab.key][field]; refreshGeomaterialsResults();
+      delete state.text[tab.key][field]; refreshGeomaterialsResults(true);
     }));
     Object.entries(state.range[tab.key] || {}).forEach(([field, value]) => value !== '' && appendGeomaterialsPill(pills, `${tab.label}: ${field} ${state.operators[tab.key]?.[field] === 'lte' ? '<=' : '>='} ${value}`, () => {
-      delete state.range[tab.key][field]; refreshGeomaterialsResults();
+      delete state.range[tab.key][field]; refreshGeomaterialsResults(true);
     }));
     Object.entries(state.dropdown[tab.key] || {}).forEach(([field, values]) => values?.length && appendGeomaterialsPill(pills, `${tab.label}: ${field} (${values.length})`, () => {
-      delete state.dropdown[tab.key][field]; refreshGeomaterialsResults();
+      delete state.dropdown[tab.key][field]; refreshGeomaterialsResults(true);
     }));
   });
   Object.entries(geomaterialsState.errors).forEach(([key, message]) => {
@@ -1027,12 +1042,12 @@ function renderGeomaterialsColumnFilters() {
       operator.setAttribute('aria-label', `Toggle ${field} comparison`);
       operator.onclick = () => {
         operators[field] = operators[field] === 'lte' ? 'gte' : 'lte';
-        refreshGeomaterialsResults();
+          refreshGeomaterialsResults(true);
       };
       const input = document.createElement('input'); input.type = 'number'; input.value = geomaterialsFilterBucket('range', tab.key)[field] || '';
       input.dataset.jsonFilter = `${tab.key}:${field}:range`;
       input.setAttribute('aria-label', `Filter ${field}`);
-      input.oninput = () => { geomaterialsFilterBucket('range', tab.key)[field] = input.value; refreshGeomaterialsResults(); };
+      input.oninput = () => { geomaterialsFilterBucket('range', tab.key)[field] = input.value; refreshGeomaterialsResults(true); };
       controls.append(operator, input); control.appendChild(controls);
     } else if ((config.dropdownColumns || []).includes(field)) {
       control.appendChild(buildGeomaterialsDropdown(tab.key, field));
@@ -1040,7 +1055,7 @@ function renderGeomaterialsColumnFilters() {
       const input = document.createElement('input'); input.type = 'search'; input.value = geomaterialsFilterBucket('text', tab.key)[field] || '';
       input.dataset.jsonFilter = `${tab.key}:${field}:text`;
       input.setAttribute('aria-label', `Filter ${field}`);
-      input.oninput = () => { geomaterialsFilterBucket('text', tab.key)[field] = input.value; refreshGeomaterialsResults(); };
+      input.oninput = () => { geomaterialsFilterBucket('text', tab.key)[field] = input.value; refreshGeomaterialsResults(true); };
       control.appendChild(input);
     }
     controlsByField.set(field, control);
@@ -1162,11 +1177,11 @@ function buildGeomaterialsDropdown(tabKey, field) {
   };
   addAction('Select all', () => {
     geomaterialsFilterBucket('dropdown', tabKey)[field] = [...options];
-    refreshGeomaterialsResults();
+    refreshGeomaterialsResults(true);
   });
   addAction('Clear', () => {
     delete geomaterialsFilterBucket('dropdown', tabKey)[field];
-    refreshGeomaterialsResults();
+    refreshGeomaterialsResults(true);
   });
   options.forEach(value => {
     const option = document.createElement('label'); option.className = 'json-dropdown-option';
@@ -1177,7 +1192,7 @@ function buildGeomaterialsDropdown(tabKey, field) {
       const next = new Set(geomaterialsFilterBucket('dropdown', tabKey)[field] || []);
       if (checkbox.checked) next.add(value); else next.delete(value);
       geomaterialsFilterBucket('dropdown', tabKey)[field] = [...next];
-      refreshGeomaterialsResults();
+      refreshGeomaterialsResults(true);
     };
     const text = document.createElement('span'); text.textContent = value;
     option.append(checkbox, text); optionList.appendChild(option);
@@ -1434,7 +1449,7 @@ function clearGeomaterialsFilters() {
   geomaterialsState.specialFilter = null;
   geomaterialsState.sort = {};
   history.replaceState(null, '', `${location.pathname}${location.search}`);
-  refreshGeomaterialsResults();
+  refreshGeomaterialsResults(true);
 }
 function geomaterialsShareState() {
   const center = map.getCenter();
@@ -2400,7 +2415,12 @@ function showTable(feats, label) {
 }
 function closeResults() {
   document.body.classList.remove('has-table');
-  if (geomaterialsState.active) geomaterialsState.panelClosed = true;
+  if (geomaterialsState.active) {
+    geomaterialsState.panelClosed = true;
+    if (geomaterialsState.linkedGroup && !geomaterialsState.linkedGroup.section.classList.contains('group-hidden')) {
+      geomaterialsState.linkedGroup.setVisibility(false);
+    }
+  }
   selected = []; shown = [];
   if (ring) { ring.remove(); ring = null; }
 }

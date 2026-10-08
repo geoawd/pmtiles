@@ -8,11 +8,11 @@ window.CONFIG = {
   // Themes can use `datasets: ['geol']` to switch on every layer from a dataset, and/or `layers: [...]` for individual layers.
   // Remove `datasets` to use `styleUrl` alone.
   datasets: [
-    { id: 'bores', name: 'Site Investigations', style: 'layers.json', pmtiles: 'data/layers.pmtiles' },
-    { id: 'Geology', name: 'Geology', style: 'geology.json', pmtiles: 'data/layers.pmtiles' },
+    { id: 'bores', name: 'Site Investigations', style: 'config/layers.json', pmtiles: 'data/layers.pmtiles' },
+    { id: 'Geology', name: 'Geology', style: 'config/geology.json', pmtiles: 'data/layers.pmtiles' },
 
   ],
-  styleUrl: 'style.json',
+  styleUrl: 'config/style.json',
   queryLayers: null,          // null = auto-detect every layer on a vector source in your style; or list ids
   basemaps: [
     { id: 'osm', name: 'OpenStreetMap', tiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

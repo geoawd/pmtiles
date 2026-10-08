@@ -1,9 +1,9 @@
 window.GEOMATERIALS_CONFIG = {
     title: 'Geomaterials',
     deploymentId: 'geomaterials',
-    dataDirectory: 'leaflet_app/geomaterials/',
-    deploymentsFile: 'leaflet_app/deployments.json',
-    deploymentLinksFile: 'leaflet_app/deploymentlinks.json',
+    dataDirectory: 'data/geomaterials/',
+    deploymentsFile: 'config/deployments.json',
+    deploymentLinksFile: 'config/deploymentlinks.json',
     urlBases: {
         sampleTrayImages: 'http://127.0.0.1:8080/geomaterials/sampletrays/'
     },

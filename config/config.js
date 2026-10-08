@@ -220,6 +220,9 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
       jsonTheme: 'geomaterials', 
       jsonConfig: 'config/config_geomaterials.js',
       groups: ['Geology WMS'] },
+    { name: 'Test Deployment',
+      jsonTheme: 'test-deployment',
+      jsonConfig: 'config/config_test_deployment.js' },
    // { name: 'All layers' }
   ],
 

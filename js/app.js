@@ -1,5 +1,5 @@
 import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.mjs';
-import { buildJsonPointFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
+import { buildJsonFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, jsonGeometryCenter, jsonGeometryIntersectsBounds, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
 
 window.maplibregl = maplibregl;
 const CONFIG = window.CONFIG;
@@ -47,7 +47,7 @@ function panelHeightLimits() {
 function setPanelHeight(height, userResized = false) {
   const limits = panelHeightLimits();
   const next = Math.max(limits.min, Math.min(limits.max, height));
-  if (userResized) geomaterialsState.panelManuallySized = true;
+  if (userResized) activeJsonThemeState.panelManuallySized = true;
   resultsPanel.style.height = `${next}px`;
   panelSplitter.setAttribute('aria-valuemin', String(limits.min));
   panelSplitter.setAttribute('aria-valuemax', String(Math.round(limits.max)));
@@ -476,11 +476,21 @@ let themeLayers = null;   // null = every layer; otherwise the layer names allow
 const jsonThemeStates = new Map();
 let activeJsonThemeId = null;
 let activeJsonConfig = null;
-let geomaterialsState = createJsonThemeState();
+let activeJsonThemeState = createJsonThemeState();
 function jsonThemeMapIds(themeId = activeJsonThemeId) {
   const namespace = String(themeId || 'theme').replace(/[^a-z0-9_-]/gi, '-');
   const layer = `json-${namespace}-points`;
-  return { source: `json-${namespace}-source`, layer, clusters: `${layer}-clusters`, clusterCount: `${layer}-cluster-count` };
+  const ids = {
+    source: `json-${namespace}-source`,
+    layer,
+    lines: `json-${namespace}-lines`,
+    polygons: `json-${namespace}-polygons`,
+    clusters: `${layer}-clusters`,
+    clusterCount: `${layer}-cluster-count`
+  };
+  ids.geometryLayers = [ids.layer, ids.lines, ids.polygons];
+  ids.layers = [...ids.geometryLayers, ids.clusters, ids.clusterCount];
+  return ids;
 }
 function resolveThemeGroup(name) {
   const namedTheme = (CONFIG.themes || []).find(theme => theme.name === name);
@@ -524,11 +534,11 @@ function setupThemes() {
       const inTheme = all || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
-    document.querySelectorAll('#legend .lgroup').forEach(g => {   // hide headings with nothing left under them
+    document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
     if (t.jsonTheme) activateJsonTheme(t).catch(error => toast(`Could not load ${t.name} config: ${error.message}`));
-    else setGeomaterialsTheme(false);
+    else setJsonThemeActive(false);
     populateSearchLayers();   // search only offers the theme's layers
     updateArcgisLegendInView();
   };
@@ -542,7 +552,7 @@ function setupThemes() {
 async function activateJsonTheme(theme) {
   const config = await loadJsonThemeConfig(theme);
   const themeId = theme.jsonTheme;
-  if (activeJsonThemeId !== themeId && geomaterialsState.active) setGeomaterialsTheme(false);
+  if (activeJsonThemeId !== themeId && activeJsonThemeState.active) setJsonThemeActive(false);
   activeJsonThemeId = themeId;
   activeJsonConfig = config;
   if (!jsonThemeStates.has(themeId)) {
@@ -551,13 +561,13 @@ async function activateJsonTheme(theme) {
     state.tab = config.tabs.find(tab => tab.isPrimary)?.key || config.tabs[0]?.key || null;
     jsonThemeStates.set(themeId, state);
   }
-  geomaterialsState = jsonThemeStates.get(themeId);
-  setGeomaterialsTheme(true);
+  activeJsonThemeState = jsonThemeStates.get(themeId);
+  setJsonThemeActive(true);
 }
-function geomaterialsConfig() {
+function activeJsonThemeConfig() {
   return activeJsonConfig;
 }
-function geomaterialsColorExpression(config) {
+function jsonThemeColorExpression(config) {
   const value = ['to-number', ['get', config.depthField], -1];
   const classes = config.depthClasses || [];
   const expression = ['case'];
@@ -567,18 +577,35 @@ function geomaterialsColorExpression(config) {
   expression.push(classes.at(-1)?.fill || '#2166ac');
   return expression;
 }
-function addGeomaterialsMapLayers() {
+function addJsonThemeMapLayers() {
   const ids = jsonThemeMapIds();
   if (!map.getSource(ids.source)) {
-    const config = geomaterialsConfig();
+    const config = activeJsonThemeConfig();
+    const pointOnly = activeJsonThemeState.features.length > 0 &&
+      activeJsonThemeState.features.every(feature => feature.geometry.type === 'Point');
+    const clustered = config.clustering === true && pointOnly;
     map.addSource(ids.source, {
       type: 'geojson',
-      data: { type: 'FeatureCollection', features: geomaterialsState.features },
-      cluster: config.clustering === true,
+      data: { type: 'FeatureCollection', features: activeJsonThemeState.features },
+      cluster: clustered,
       clusterRadius: 48,
       clusterMaxZoom: 13
     });
-    if (config.clustering) {
+    map.addLayer({
+      id: ids.polygons, type: 'fill', source: ids.source,
+      paint: {
+        'fill-color': jsonThemeColorExpression(config),
+        'fill-opacity': config.fillOpacity ?? 0.35
+      }
+    });
+    map.addLayer({
+      id: ids.lines, type: 'line', source: ids.source,
+      paint: {
+        'line-color': jsonThemeColorExpression(config),
+        'line-width': config.lineWidth ?? 2
+      }
+    });
+    if (clustered) {
       map.addLayer({
         id: ids.clusters, type: 'circle', source: ids.source,
         filter: ['has', 'point_count'],
@@ -595,59 +622,51 @@ function addGeomaterialsMapLayers() {
         layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12 },
         paint: { 'text-color': '#ffffff' }
       });
-      map.addLayer({
-        id: ids.layer, type: 'circle', source: ids.source,
-        filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': geomaterialsColorExpression(config),
-          'circle-radius': 5,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff'
-        }
-      });
-    } else {
-      map.addLayer({
-        id: ids.layer, type: 'circle', source: ids.source,
-        paint: {
-          'circle-color': geomaterialsColorExpression(config),
-          'circle-radius': 5,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff'
-        }
-      });
     }
-    map.on('click', ids.layer, showGeomaterialsPopup);
-    map.on('mouseenter', ids.layer, () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', ids.layer, () => { map.getCanvas().style.cursor = ''; });
+    map.addLayer({
+      id: ids.layer, type: 'circle', source: ids.source,
+      ...(clustered ? { filter: ['!', ['has', 'point_count']] } : {}),
+      paint: {
+        'circle-color': jsonThemeColorExpression(config),
+        'circle-radius': 5,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#ffffff'
+      }
+    });
+    ids.geometryLayers.forEach(id => {
+      map.on('click', id, showJsonThemePopup);
+      map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+    });
   }
   map.getSource(ids.source).setData({
-    type: 'FeatureCollection', features: geomaterialsState.features
+    type: 'FeatureCollection', features: activeJsonThemeState.features
   });
-  [ids.layer, ids.clusters, ids.clusterCount]
-    .filter(id => map.getLayer(id)).forEach(id => registerLayerVisibility(id, true));
+  ids.layers.filter(id => map.getLayer(id)).forEach(id => registerLayerVisibility(id, true));
 }
 ///////////////////////////////////////////////////////////////////////////
 // Shows borehole details and filtered, expandable sibling results on map click.
 ///////////////////////////////////////////////////////////////////////////
-function showGeomaterialsPopup(event) {
+function showJsonThemePopup(event) {
   const feature = event.features?.[0];
   if (!feature) return;
-  const config = geomaterialsConfig();
+  const config = activeJsonThemeConfig();
   const primary = config.tabs.find(tab => tab.isPrimary);
   const id = feature.properties[config.linkField];
+  const clickedAt = [event.lngLat.lng, event.lngLat.lat];
   const content = document.createElement('div'); content.className = 'idwrap';
   const title = document.createElement('div'); title.className = 'idtitle';
   title.textContent = String(feature.properties[config.labelField] || id || 'Borehole');
   content.appendChild(title);
 
-  const details = createGeomaterialsPopupSection('Borehole details', false, content);
+  const details = createJsonThemePopupSection('Borehole details', false, content);
   (config.popupFields || []).forEach(field => {
     if (field.type === 'zoomLink') {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'json-popup-zoom';
       button.textContent = field.label || 'Zoom to site';
-      button.onclick = () => map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 14) });
+      button.onclick = () => map.flyTo({ center: clickedAt, zoom: Math.max(map.getZoom(), 14) });
       details.records.appendChild(button);
       return;
     }
@@ -655,7 +674,7 @@ function showGeomaterialsPopup(event) {
     if (value == null || value === '') return;
     const line = document.createElement('div'); line.className = 'arow';
     const key = document.createElement('div'); key.className = 'akey'; key.textContent = field.label || field.field;
-    const valueCell = geomaterialsCell(feature.properties, primary.key, field.field);
+    const valueCell = jsonThemeCell(feature.properties, primary.key, field.field);
     valueCell.className = 'aval';
     if (field.bold) {
       const strong = document.createElement('strong');
@@ -668,11 +687,11 @@ function showGeomaterialsPopup(event) {
   content.appendChild(details.section);
 
   config.tabs.filter(tab => !tab.isPrimary).forEach(tab => {
-    const rows = (geomaterialsState.visibleRows[tab.key] || []).filter(row =>
+    const rows = (activeJsonThemeState.visibleRows[tab.key] || []).filter(row =>
       String(row[config.linkField]) === String(id)
     );
     if (!rows.length) return;
-    const section = createGeomaterialsPopupSection(`${tab.label} (${rows.length})`, true, content);
+    const section = createJsonThemePopupSection(`${tab.label} (${rows.length})`, true, content);
     let current = 0;
     let pageLabel = null;
     if (rows.length > 1) {
@@ -696,7 +715,7 @@ function showGeomaterialsPopup(event) {
       ).forEach(([field]) => {
         const line = document.createElement('div'); line.className = 'arow';
         const key = document.createElement('div'); key.className = 'akey'; key.textContent = field;
-        const value = geomaterialsCell(row, tab.key, field); value.className = 'aval';
+        const value = jsonThemeCell(row, tab.key, field); value.className = 'aval';
         line.append(key, value); section.records.appendChild(line);
       });
     };
@@ -704,9 +723,9 @@ function showGeomaterialsPopup(event) {
     content.appendChild(section.section);
   });
   new maplibregl.Popup({ maxWidth: '360px', className: 'idpop' })
-    .setLngLat(feature.geometry.coordinates).setDOMContent(content).addTo(map);
+    .setLngLat(clickedAt).setDOMContent(content).addTo(map);
 }
-function createGeomaterialsPopupSection(label, collapsed, accordionRoot) {
+function createJsonThemePopupSection(label, collapsed, accordionRoot) {
   const section = document.createElement('section');
   section.className = `idsec${collapsed ? ' collapsed' : ''}`;
   const heading = document.createElement('div'); heading.className = 'idhead';
@@ -737,41 +756,41 @@ function createGeomaterialsPopupSection(label, collapsed, accordionRoot) {
   return { section, body, records };
 }
 ///////////////////////////////////////////////////////////////////////////
-// Loads and joins configured Geomaterials JSON datasets once for the theme.
+// Loads and joins the active JSON theme's configured datasets once.
 ///////////////////////////////////////////////////////////////////////////
-function loadGeomaterialsData() {
-  if (geomaterialsState.loaded) return Promise.resolve();
-  if (geomaterialsState.loading) return geomaterialsState.loading;
-  const config = geomaterialsConfig();
-  geomaterialsState.loading = loadJsonThemeData(config).then(data => {
-    geomaterialsState.rows = data.rows;
-    geomaterialsState.errors = data.errors;
-    geomaterialsState.deployments = data.deployments;
-    geomaterialsState.deploymentLinks = data.deploymentLinks;
+function loadActiveJsonThemeData() {
+  if (activeJsonThemeState.loaded) return Promise.resolve();
+  if (activeJsonThemeState.loading) return activeJsonThemeState.loading;
+  const config = activeJsonThemeConfig();
+  activeJsonThemeState.loading = loadJsonThemeData(config).then(data => {
+    activeJsonThemeState.rows = data.rows;
+    activeJsonThemeState.errors = data.errors;
+    activeJsonThemeState.deployments = data.deployments;
+    activeJsonThemeState.deploymentLinks = data.deploymentLinks;
     const primary = config.tabs.find(tab => tab.isPrimary);
-    geomaterialsState.features = buildJsonPointFeatures(geomaterialsState.rows[primary.key], config, proj4);
-    geomaterialsState.featureById = new Map(geomaterialsState.features.map(feature => [String(feature.id), feature]));
-    geomaterialsState.loaded = true;
-    if (geomaterialsState.active) {
-      addGeomaterialsMapLayers();
-      if (!geomaterialsState.stateRestored) {
-        geomaterialsState.stateRestored = true;
-        restoreGeomaterialsState();
+    activeJsonThemeState.features = buildJsonFeatures(activeJsonThemeState.rows[primary.key], config, proj4);
+    activeJsonThemeState.featureById = new Map(activeJsonThemeState.features.map(feature => [String(feature.id), feature]));
+    activeJsonThemeState.loaded = true;
+    if (activeJsonThemeState.active) {
+      addJsonThemeMapLayers();
+      if (!activeJsonThemeState.stateRestored) {
+        activeJsonThemeState.stateRestored = true;
+        restoreJsonThemeState();
       }
-      refreshGeomaterialsResults();
+      refreshJsonThemeResults();
     }
   }).catch(error => {
-    geomaterialsState.loading = null;
+    activeJsonThemeState.loading = null;
     throw error;
   });
-  return geomaterialsState.loading;
+  return activeJsonThemeState.loading;
 }
 ///////////////////////////////////////////////////////////////////////////
-// Activates the Geomaterials map layer, results panel, and theme controls.
+// Activates the JSON theme map layer, results panel, and theme controls.
 ///////////////////////////////////////////////////////////////////////////
-function setGeomaterialsTheme(active) {
-  const wasActive = geomaterialsState.active;
-  geomaterialsState.active = active;
+function setJsonThemeActive(active) {
+  const wasActive = activeJsonThemeState.active;
+  activeJsonThemeState.active = active;
   document.body.classList.toggle('json-theme', active);
   $('jsonControls').hidden = !active;
   $('jsonExcelBtn').hidden = !active;
@@ -799,26 +818,27 @@ function setGeomaterialsTheme(active) {
   if (active && !wasActive && isMobile()) {
     toast('This view is not optimised for mobile devices. Please view it on a desktop.');
   }
-  updateGeomaterialsLegend(active);
+  updateJsonThemeLegend(active);
   const ids = jsonThemeMapIds();
-  setThemeVisibility([ids.layer, ids.clusters, ids.clusterCount], active);
+  setThemeVisibility(ids.layers, active);
   if (active) {
-    if (!wasActive) geomaterialsState.panelClosed = !!geomaterialsState.linkedGroup?.section.classList.contains('group-hidden');
-    if (!wasActive && !geomaterialsState.panelManuallySized) setPanelHeight(mainView.clientHeight * 0.35);
-    if (geomaterialsState.loaded) refreshGeomaterialsResults();
-    else loadGeomaterialsData().catch(error => toast(`Could not load Geomaterials data: ${error.message}`));
+    if (!wasActive) activeJsonThemeState.panelClosed = !!activeJsonThemeState.linkedGroup?.section.classList.contains('group-hidden');
+    if (!wasActive && !activeJsonThemeState.panelManuallySized) setPanelHeight(mainView.clientHeight * 0.35);
+    if (activeJsonThemeState.loaded) refreshJsonThemeResults();
+    else loadActiveJsonThemeData().catch(error => toast(`Could not load ${activeJsonThemeConfig().title || 'JSON theme'} data: ${error.message}`));
   } else if (wasActive) closeResults();
 }
-function updateGeomaterialsLegend(active) {
-  const config = geomaterialsConfig();
+function updateJsonThemeLegend(active) {
+  const config = activeJsonThemeConfig();
   const legend = $('legend');
-  if (!geomaterialsState.depthGroup) {
-    const themeNamespace = String(geomaterialsState.themeId || activeJsonThemeId).replace(/[^a-z0-9_-]/gi, '-');
+  if (!activeJsonThemeState.depthGroup) {
+    const themeNamespace = String(activeJsonThemeState.themeId || activeJsonThemeId).replace(/[^a-z0-9_-]/gi, '-');
     const depth = addGroup(legend, config.legendTitle || `${config.title} features`);
     depth.section = depth.body.closest('.lgroup');
     depth.section.id = `json-${themeNamespace}-depth-legend`;
+    depth.section.classList.add('json-theme-legend');
     const ids = jsonThemeMapIds();
-    [ids.layer, ids.clusters, ids.clusterCount].forEach(id => depth.layerIds.add(id));
+    ids.layers.forEach(id => depth.layerIds.add(id));
     (config.depthClasses || []).forEach(item => {
       const row = document.createElement('div'); row.className = 'json-legend-row';
       const swatch = document.createElement('span'); swatch.className = 'json-legend-swatch'; swatch.style.backgroundColor = item.fill;
@@ -828,17 +848,17 @@ function updateGeomaterialsLegend(active) {
     const linked = addGroup(legend, config.filterGroupTitle || `${config.title} filters/results`);
     linked.section = linked.body.closest('.lgroup');
     linked.section.id = `json-${themeNamespace}-filters-legend`;
-    linked.section.classList.add('json-link-filters');
+    linked.section.classList.add('json-theme-legend', 'json-link-filters');
     const controls = document.createElement('div'); controls.className = 'json-special-filters';
     controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', 'Linked-data filters');
     linked.body.appendChild(controls);
     linked.onVisibilityChange = visible => {
-      geomaterialsState.panelClosed = !visible;
-      document.body.classList.toggle('has-table', visible && geomaterialsState.active);
+      activeJsonThemeState.panelClosed = !visible;
+      document.body.classList.toggle('has-table', visible && activeJsonThemeState.active);
     };
     const eye = linked.section.querySelector('.lgeye');
     linked.setVisibility = visible => {
-      geomaterialsState.linkedVisible = visible;
+      activeJsonThemeState.linkedVisible = visible;
       eye.innerHTML = visible ? ICON_EYE : ICON_EYE_OFF;
       const label = `${visible ? 'Hide' : 'Show'} Quick Filters/Results Table`;
       eye.title = label;
@@ -847,149 +867,149 @@ function updateGeomaterialsLegend(active) {
       linked.section.classList.toggle('group-hidden', !visible);
       linked.onVisibilityChange(visible);
     };
-    eye.onclick = () => linked.setVisibility(!geomaterialsState.linkedVisible);
-    geomaterialsState.depthGroup = depth;
-    geomaterialsState.linkedGroup = linked;
+    eye.onclick = () => linked.setVisibility(!activeJsonThemeState.linkedVisible);
+    activeJsonThemeState.depthGroup = depth;
+    activeJsonThemeState.linkedGroup = linked;
   }
-  const { depthGroup, linkedGroup } = geomaterialsState;
+  const { depthGroup, linkedGroup } = activeJsonThemeState;
   depthGroup.section.hidden = !active;
   linkedGroup.section.hidden = !active;
   legend.prepend(depthGroup.section);
   legend.insertBefore(linkedGroup.section, depthGroup.section.nextSibling);
 }
 ///////////////////////////////////////////////////////////////////////////
-// Recomputes viewport-scoped filters and refreshes Geomaterials map and tables.
+// Recomputes viewport-scoped filters and refreshes JSON theme map and tables.
 ///////////////////////////////////////////////////////////////////////////
-function refreshGeomaterialsResults(reopenPanel = false) {
-  if (!geomaterialsState.active) return;
+function refreshJsonThemeResults(reopenPanel = false) {
+  if (!activeJsonThemeState.active) return;
   const focused = document.activeElement?.dataset.jsonFilter;
   if (focused) {
-    geomaterialsState.filterFocus = focused;
-    geomaterialsState.filterSelection = {
+    activeJsonThemeState.filterFocus = focused;
+    activeJsonThemeState.filterSelection = {
       start: document.activeElement.selectionStart,
       end: document.activeElement.selectionEnd
     };
   }
-  const config = geomaterialsConfig();
+  const config = activeJsonThemeConfig();
   const primary = config.tabs.find(tab => tab.isPrimary);
   const bounds = map.getBounds();
-  const primaryRows = geomaterialsState.rows[primary.key] || [];
+  const primaryRows = activeJsonThemeState.rows[primary.key] || [];
   const bounded = primaryRows.filter(row => {
-    const feature = geomaterialsState.featureById.get(String(row[config.linkField]));
-    return feature && bounds.contains(feature.geometry.coordinates);
+    const feature = activeJsonThemeState.featureById.get(String(row[config.linkField]));
+    return feature && jsonGeometryIntersectsBounds(feature.geometry, bounds);
   });
   let boundedIds = new Set(bounded.map(row => row[config.linkField]).filter(Boolean));
-  if (geomaterialsState.specialFilter) {
-    const rows = geomaterialsState.rows[geomaterialsState.specialFilter] || [];
+  if (activeJsonThemeState.specialFilter) {
+    const rows = activeJsonThemeState.rows[activeJsonThemeState.specialFilter] || [];
     const linked = new Set(rows.map(row => row[config.linkField]).filter(Boolean));
     boundedIds = new Set([...boundedIds].filter(id => linked.has(id)));
   }
-  geomaterialsState.boundedIds = boundedIds;
-  const primaryBase = filterGeomaterialsRows(primary.key,
+  activeJsonThemeState.boundedIds = boundedIds;
+  const primaryBase = filterJsonThemeRows(primary.key,
     bounded.filter(row => boundedIds.has(row[config.linkField])));
   let finalIds = new Set(primaryBase.map(row => row[config.linkField]).filter(Boolean));
-  geomaterialsState.baseIds = new Set(finalIds);
+  activeJsonThemeState.baseIds = new Set(finalIds);
   config.tabs.filter(tab => !tab.isPrimary).forEach(tab => {
-    if (!hasGeomaterialsFilters(tab.key)) return;
-    const filtered = filterGeomaterialsRows(tab.key,
-      (geomaterialsState.rows[tab.key] || []).filter(row => finalIds.has(row[config.linkField])));
+    if (!hasJsonThemeFilters(tab.key)) return;
+    const filtered = filterJsonThemeRows(tab.key,
+      (activeJsonThemeState.rows[tab.key] || []).filter(row => finalIds.has(row[config.linkField])));
     const matches = new Set(filtered.map(row => row[config.linkField]).filter(Boolean));
     finalIds = new Set([...finalIds].filter(id => matches.has(id)));
   });
-  geomaterialsState.finalIds = finalIds;
-  geomaterialsState.visibleRows = {};
+  activeJsonThemeState.finalIds = finalIds;
+  activeJsonThemeState.visibleRows = {};
   config.tabs.forEach(tab => {
-    const scope = tab.isPrimary ? primaryBase : (geomaterialsState.rows[tab.key] || []).filter(row => finalIds.has(row[config.linkField]));
-    geomaterialsState.visibleRows[tab.key] = filterGeomaterialsRows(tab.key, scope)
+    const scope = tab.isPrimary ? primaryBase : (activeJsonThemeState.rows[tab.key] || []).filter(row => finalIds.has(row[config.linkField]));
+    activeJsonThemeState.visibleRows[tab.key] = filterJsonThemeRows(tab.key, scope)
       .filter(row => finalIds.has(row[config.linkField]));
   });
-  const visibleFeatures = geomaterialsState.features.filter(feature => finalIds.has(feature.properties[config.linkField]));
+  const visibleFeatures = activeJsonThemeState.features.filter(feature => finalIds.has(feature.properties[config.linkField]));
   const mapIds = jsonThemeMapIds();
   if (map.getSource(mapIds.source)) {
     map.getSource(mapIds.source).setData({ type: 'FeatureCollection', features: visibleFeatures });
   }
-  renderGeomaterialsControls();
-  renderGeomaterialsTabs();
-  renderGeomaterialsTable();
-  $('count').textContent = `${finalIds.size} boreholes in view`;
-  if (reopenPanel && geomaterialsState.panelClosed && geomaterialsState.linkedGroup) {
-    geomaterialsState.linkedGroup.setVisibility(true);
+  renderJsonThemeControls();
+  renderJsonThemeTabs();
+  renderJsonThemeTable();
+  $('count').textContent = `${finalIds.size} items in view`;
+  if (reopenPanel && activeJsonThemeState.panelClosed && activeJsonThemeState.linkedGroup) {
+    activeJsonThemeState.linkedGroup.setVisibility(true);
   }
-  const linkedVisible = !geomaterialsState.linkedGroup?.section.classList.contains('group-hidden');
-  document.body.classList.toggle('has-table', !geomaterialsState.panelClosed && linkedVisible);
+  const linkedVisible = !activeJsonThemeState.linkedGroup?.section.classList.contains('group-hidden');
+  document.body.classList.toggle('has-table', !activeJsonThemeState.panelClosed && linkedVisible);
 }
 map.on('moveend', () => {
-  if (geomaterialsState.active && geomaterialsState.loaded) refreshGeomaterialsResults();
+  if (activeJsonThemeState.active && activeJsonThemeState.loaded) refreshJsonThemeResults();
 });
-function geomaterialsFilterBucket(kind, tabKey) {
-  const bucket = geomaterialsState.filters[kind];
+function jsonThemeFilterBucket(kind, tabKey) {
+  const bucket = activeJsonThemeState.filters[kind];
   return bucket[tabKey] || (bucket[tabKey] = {});
 }
-function geomaterialsSpecialFilterControl() {
-  return geomaterialsState.linkedGroup?.body.querySelector('.json-special-filters');
+function jsonThemeSpecialFilterControl() {
+  return activeJsonThemeState.linkedGroup?.body.querySelector('.json-special-filters');
 }
-function hasGeomaterialsFilters(tabKey, exceptField = null) {
-  return hasJsonFilters(geomaterialsState.filters, tabKey, exceptField);
+function hasJsonThemeFilters(tabKey, exceptField = null) {
+  return hasJsonFilters(activeJsonThemeState.filters, tabKey, exceptField);
 }
-function filterGeomaterialsRows(tabKey, rows, exceptField = null) {
-  return filterJsonRows(rows, tabKey, geomaterialsState.filters, geomaterialsConfig(), exceptField);
+function filterJsonThemeRows(tabKey, rows, exceptField = null) {
+  return filterJsonRows(rows, tabKey, activeJsonThemeState.filters, activeJsonThemeConfig(), exceptField);
 }
-function geomaterialsDropdownRows(tabKey, field) {
-  const config = geomaterialsConfig();
+function jsonThemeDropdownRows(tabKey, field) {
+  const config = activeJsonThemeConfig();
   const primary = config.tabs.find(tab => tab.isPrimary);
-  const primaryRows = (geomaterialsState.rows[primary.key] || []).filter(row => geomaterialsState.boundedIds.has(row[config.linkField]));
-  let ids = new Set(filterGeomaterialsRows(primary.key, primaryRows, tabKey === primary.key ? field : null)
+  const primaryRows = (activeJsonThemeState.rows[primary.key] || []).filter(row => activeJsonThemeState.boundedIds.has(row[config.linkField]));
+  let ids = new Set(filterJsonThemeRows(primary.key, primaryRows, tabKey === primary.key ? field : null)
     .map(row => row[config.linkField]).filter(Boolean));
-  config.tabs.filter(tab => !tab.isPrimary && tab.key !== tabKey && hasGeomaterialsFilters(tab.key)).forEach(tab => {
-    const filtered = filterGeomaterialsRows(tab.key,
-      (geomaterialsState.rows[tab.key] || []).filter(row => ids.has(row[config.linkField])));
+  config.tabs.filter(tab => !tab.isPrimary && tab.key !== tabKey && hasJsonThemeFilters(tab.key)).forEach(tab => {
+    const filtered = filterJsonThemeRows(tab.key,
+      (activeJsonThemeState.rows[tab.key] || []).filter(row => ids.has(row[config.linkField])));
     const next = new Set(filtered.map(row => row[config.linkField]).filter(Boolean));
     ids = new Set([...ids].filter(id => next.has(id)));
   });
   const sourceTab = config.tabs.find(tab => tab.key === tabKey);
   const scope = sourceTab.isPrimary
     ? primaryRows.filter(row => ids.has(row[config.linkField]))
-    : (geomaterialsState.rows[tabKey] || []).filter(row => ids.has(row[config.linkField]));
-  return filterGeomaterialsRows(tabKey, scope, field);
+    : (activeJsonThemeState.rows[tabKey] || []).filter(row => ids.has(row[config.linkField]));
+  return filterJsonThemeRows(tabKey, scope, field);
 }
-function renderGeomaterialsControls() {
-  const config = geomaterialsConfig();
-  const special = geomaterialsSpecialFilterControl();
+function renderJsonThemeControls() {
+  const config = activeJsonThemeConfig();
+  const special = jsonThemeSpecialFilterControl();
   if (!special) return;
   special.replaceChildren();
   const specialSelect = document.createElement('select');
   specialSelect.className = 'theme-select';
-  specialSelect.setAttribute('aria-label', 'Filter boreholes by linked data');
-  const allOption = document.createElement('option'); allOption.value = ''; allOption.textContent = 'All boreholes';
+  specialSelect.setAttribute('aria-label', 'Filter items by linked data');
+  const allOption = document.createElement('option'); allOption.value = ''; allOption.textContent = 'Filter by';
   specialSelect.appendChild(allOption);
   config.tabs.filter(tab => tab.specialFilter).forEach(tab => {
-    const option = document.createElement('option'); option.value = tab.key; option.textContent = `Boreholes with ${tab.specialFilter}`;
+    const option = document.createElement('option'); option.value = tab.key; option.textContent = `Items with ${tab.specialFilter}`;
     specialSelect.appendChild(option);
   });
-  specialSelect.value = geomaterialsState.specialFilter || '';
-  specialSelect.onchange = () => { geomaterialsState.specialFilter = specialSelect.value || null; refreshGeomaterialsResults(true); };
+  specialSelect.value = activeJsonThemeState.specialFilter || '';
+  specialSelect.onchange = () => { activeJsonThemeState.specialFilter = specialSelect.value || null; refreshJsonThemeResults(true); };
   special.appendChild(specialSelect);
   const pills = $('jsonActiveFilters');
   pills.replaceChildren();
-  if (geomaterialsState.specialFilter) {
-    const tab = config.tabs.find(item => item.key === geomaterialsState.specialFilter);
-    appendGeomaterialsPill(pills, `With ${tab.specialFilter}`, () => {
-      geomaterialsState.specialFilter = null; refreshGeomaterialsResults(true);
+  if (activeJsonThemeState.specialFilter) {
+    const tab = config.tabs.find(item => item.key === activeJsonThemeState.specialFilter);
+    appendJsonThemeFilterPill(pills, `With ${tab.specialFilter}`, () => {
+      activeJsonThemeState.specialFilter = null; refreshJsonThemeResults(true);
     });
   }
   config.tabs.forEach(tab => {
-    const state = geomaterialsState.filters;
-    Object.entries(state.text[tab.key] || {}).forEach(([field, value]) => value && appendGeomaterialsPill(pills, `${tab.label}: ${field} ${value}`, () => {
-      delete state.text[tab.key][field]; refreshGeomaterialsResults(true);
+    const state = activeJsonThemeState.filters;
+    Object.entries(state.text[tab.key] || {}).forEach(([field, value]) => value && appendJsonThemeFilterPill(pills, `${tab.label}: ${field} ${value}`, () => {
+      delete state.text[tab.key][field]; refreshJsonThemeResults(true);
     }));
-    Object.entries(state.range[tab.key] || {}).forEach(([field, value]) => value !== '' && appendGeomaterialsPill(pills, `${tab.label}: ${field} ${state.operators[tab.key]?.[field] === 'lte' ? '<=' : '>='} ${value}`, () => {
-      delete state.range[tab.key][field]; refreshGeomaterialsResults(true);
+    Object.entries(state.range[tab.key] || {}).forEach(([field, value]) => value !== '' && appendJsonThemeFilterPill(pills, `${tab.label}: ${field} ${state.operators[tab.key]?.[field] === 'lte' ? '<=' : '>='} ${value}`, () => {
+      delete state.range[tab.key][field]; refreshJsonThemeResults(true);
     }));
-    Object.entries(state.dropdown[tab.key] || {}).forEach(([field, values]) => values?.length && appendGeomaterialsPill(pills, `${tab.label}: ${field} (${values.length})`, () => {
-      delete state.dropdown[tab.key][field]; refreshGeomaterialsResults(true);
+    Object.entries(state.dropdown[tab.key] || {}).forEach(([field, values]) => values?.length && appendJsonThemeFilterPill(pills, `${tab.label}: ${field} (${values.length})`, () => {
+      delete state.dropdown[tab.key][field]; refreshJsonThemeResults(true);
     }));
   });
-  Object.entries(geomaterialsState.errors).forEach(([key, message]) => {
+  Object.entries(activeJsonThemeState.errors).forEach(([key, message]) => {
     const tab = config.tabs.find(item => item.key === key);
     const error = document.createElement('span');
     error.className = 'json-error';
@@ -997,7 +1017,7 @@ function renderGeomaterialsControls() {
     pills.appendChild(error);
   });
 }
-function appendGeomaterialsPill(parent, label, clear) {
+function appendJsonThemeFilterPill(parent, label, clear) {
   const pill = document.createElement('span');
   pill.className = 'json-pill';
   pill.append(document.createTextNode(label));
@@ -1006,10 +1026,10 @@ function appendGeomaterialsPill(parent, label, clear) {
   button.onclick = clear;
   pill.appendChild(button); parent.appendChild(pill);
 }
-function renderGeomaterialsColumnFilters() {
-  const config = geomaterialsConfig();
-  const tab = config.tabs.find(item => item.key === geomaterialsState.tab) || config.tabs[0];
-  const sample = (geomaterialsState.rows[tab.key] || [])[0] || {};
+function renderJsonThemeColumnFilters() {
+  const config = activeJsonThemeConfig();
+  const tab = config.tabs.find(item => item.key === activeJsonThemeState.tab) || config.tabs[0];
+  const sample = (activeJsonThemeState.rows[tab.key] || [])[0] || {};
   const controlsByField = new Map();
   Object.keys(sample).filter(field => !config.hiddenColumns.includes(field)).forEach(field => {
     const control = document.createElement('div');
@@ -1019,34 +1039,34 @@ function renderGeomaterialsColumnFilters() {
     if (Object.hasOwn(config.rangeFilterColumns, field)) {
       const controls = document.createElement('span'); controls.className = 'range-control';
       const operator = document.createElement('button'); operator.type = 'button'; operator.className = 'range-operator';
-      const operators = geomaterialsFilterBucket('operators', tab.key);
+      const operators = jsonThemeFilterBucket('operators', tab.key);
       operator.textContent = operators[field] === 'lte' ? '<=' : '>=';
       operator.title = `Toggle ${field} minimum or maximum`;
       operator.setAttribute('aria-label', `Toggle ${field} comparison`);
       operator.onclick = () => {
         operators[field] = operators[field] === 'lte' ? 'gte' : 'lte';
-          refreshGeomaterialsResults(true);
+          refreshJsonThemeResults(true);
       };
-      const input = document.createElement('input'); input.type = 'number'; input.value = geomaterialsFilterBucket('range', tab.key)[field] || '';
+      const input = document.createElement('input'); input.type = 'number'; input.value = jsonThemeFilterBucket('range', tab.key)[field] || '';
       input.dataset.jsonFilter = `${tab.key}:${field}:range`;
       input.setAttribute('aria-label', `Filter ${field}`);
-      input.oninput = () => { geomaterialsFilterBucket('range', tab.key)[field] = input.value; refreshGeomaterialsResults(true); };
+      input.oninput = () => { jsonThemeFilterBucket('range', tab.key)[field] = input.value; refreshJsonThemeResults(true); };
       controls.append(operator, input); control.appendChild(controls);
     } else if ((config.dropdownColumns || []).includes(field)) {
-      control.appendChild(buildGeomaterialsDropdown(tab.key, field));
+      control.appendChild(buildJsonThemeDropdown(tab.key, field));
     } else {
-      const input = document.createElement('input'); input.type = 'search'; input.value = geomaterialsFilterBucket('text', tab.key)[field] || '';
+      const input = document.createElement('input'); input.type = 'search'; input.value = jsonThemeFilterBucket('text', tab.key)[field] || '';
       input.dataset.jsonFilter = `${tab.key}:${field}:text`;
       input.setAttribute('aria-label', `Filter ${field}`);
-      input.oninput = () => { geomaterialsFilterBucket('text', tab.key)[field] = input.value; refreshGeomaterialsResults(true); };
+      input.oninput = () => { jsonThemeFilterBucket('text', tab.key)[field] = input.value; refreshJsonThemeResults(true); };
       control.appendChild(input);
     }
     controlsByField.set(field, control);
   });
   return controlsByField;
 }
-function positionOpenGeomaterialsDropdown() {
-  const key = geomaterialsState.openDropdown;
+function positionOpenJsonThemeDropdown() {
+  const key = activeJsonThemeState.openDropdown;
   if (!key) return;
   const trigger = [...$('tablewrap').querySelectorAll('.json-dropdown-trigger')]
     .find(button => button.dataset.jsonFilter === `${key}:trigger`);
@@ -1063,19 +1083,19 @@ function positionOpenGeomaterialsDropdown() {
 ///////////////////////////////////////////////////////////////////////////
 // Renders dataset tabs with counts and their configured help controls.
 ///////////////////////////////////////////////////////////////////////////
-function renderGeomaterialsTabs() {
-  const config = geomaterialsConfig();
-  closeGeomaterialsHelp();
+function renderJsonThemeTabs() {
+  const config = activeJsonThemeConfig();
+  closeJsonThemeHelp();
   const tabs = $('tabs'); tabs.replaceChildren();
-  const available = config.tabs.filter(tab => !geomaterialsState.hiddenTabs.has(tab.key));
-  if (!available.some(tab => tab.key === geomaterialsState.tab)) geomaterialsState.tab = available[0]?.key || config.tabs[0].key;
+  const available = config.tabs.filter(tab => !activeJsonThemeState.hiddenTabs.has(tab.key));
+  if (!available.some(tab => tab.key === activeJsonThemeState.tab)) activeJsonThemeState.tab = available[0]?.key || config.tabs[0].key;
   available.forEach(tab => {
-    const rows = geomaterialsState.visibleRows[tab.key] || [];
+    const rows = activeJsonThemeState.visibleRows[tab.key] || [];
     const group = document.createElement('span'); group.className = 'json-tab-group';
     const button = document.createElement('button');
-    button.type = 'button'; button.className = `tab${geomaterialsState.tab === tab.key ? ' on' : ''}`;
+    button.type = 'button'; button.className = `tab${activeJsonThemeState.tab === tab.key ? ' on' : ''}`;
     button.textContent = `${tab.label} (${rows.length})`;
-    button.onclick = () => { geomaterialsState.tab = tab.key; renderGeomaterialsControls(); renderGeomaterialsTabs(); renderGeomaterialsTable(); };
+    button.onclick = () => { activeJsonThemeState.tab = tab.key; renderJsonThemeControls(); renderJsonThemeTabs(); renderJsonThemeTable(); };
     group.appendChild(button);
     if (tab.help?.content) {
       const help = document.createElement('button');
@@ -1084,17 +1104,17 @@ function renderGeomaterialsTabs() {
       help.setAttribute('aria-label', help.title);
       help.setAttribute('aria-haspopup', 'dialog');
       help.setAttribute('aria-expanded', 'false');
-      help.onpointerenter = () => showGeomaterialsHelp(tab, help);
-      help.onpointerleave = scheduleGeomaterialsHelpClose;
-      help.onfocus = () => showGeomaterialsHelp(tab, help);
-      help.onblur = scheduleGeomaterialsHelpClose;
+      help.onpointerenter = () => showJsonThemeHelp(tab, help);
+      help.onpointerleave = scheduleJsonThemeHelpClose;
+      help.onfocus = () => showJsonThemeHelp(tab, help);
+      help.onblur = scheduleJsonThemeHelpClose;
       help.onclick = event => {
         event.stopPropagation();
-        if (geomaterialsHelpPopover?.trigger === help && geomaterialsHelpPopover.pinned) closeGeomaterialsHelp();
-        else showGeomaterialsHelp(tab, help, true);
+        if (jsonThemeHelpPopover?.trigger === help && jsonThemeHelpPopover.pinned) closeJsonThemeHelp();
+        else showJsonThemeHelp(tab, help, true);
       };
       help.onkeydown = event => {
-        if (event.key === 'Escape') { event.preventDefault(); closeGeomaterialsHelp(true); }
+        if (event.key === 'Escape') { event.preventDefault(); closeJsonThemeHelp(true); }
       };
       group.appendChild(help);
     }
@@ -1102,48 +1122,48 @@ function renderGeomaterialsTabs() {
       const hide = document.createElement('button'); hide.type = 'button'; hide.className = 'json-tab-hide';
       hide.textContent = 'x'; hide.title = `Hide ${tab.label}`; hide.setAttribute('aria-label', `Hide ${tab.label}`);
       hide.onclick = () => {
-        geomaterialsState.hiddenTabs.add(tab.key);
-        if (geomaterialsState.tab === tab.key) geomaterialsState.tab = available.find(item => item.key !== tab.key)?.key || config.tabs[0].key;
-        renderGeomaterialsControls(); renderGeomaterialsTabs(); renderGeomaterialsTable();
+        activeJsonThemeState.hiddenTabs.add(tab.key);
+        if (activeJsonThemeState.tab === tab.key) activeJsonThemeState.tab = available.find(item => item.key !== tab.key)?.key || config.tabs[0].key;
+        renderJsonThemeControls(); renderJsonThemeTabs(); renderJsonThemeTable();
       };
       group.appendChild(hide);
     }
     tabs.appendChild(group);
   });
-  if (geomaterialsState.hiddenTabs.size) {
+  if (activeJsonThemeState.hiddenTabs.size) {
     const show = document.createElement('select'); show.setAttribute('aria-label', 'Restore hidden dataset tab');
     const prompt = document.createElement('option'); prompt.value = ''; prompt.textContent = 'Show hidden tab'; show.appendChild(prompt);
-    config.tabs.filter(tab => geomaterialsState.hiddenTabs.has(tab.key)).forEach(tab => {
+    config.tabs.filter(tab => activeJsonThemeState.hiddenTabs.has(tab.key)).forEach(tab => {
       const option = document.createElement('option'); option.value = tab.key; option.textContent = tab.label; show.appendChild(option);
     });
     show.onchange = () => {
-      if (show.value) geomaterialsState.hiddenTabs.delete(show.value);
-      renderGeomaterialsTabs();
+      if (show.value) activeJsonThemeState.hiddenTabs.delete(show.value);
+      renderJsonThemeTabs();
     };
     tabs.appendChild(show);
   }
 }
-function buildGeomaterialsDropdown(tabKey, field) {
+function buildJsonThemeDropdown(tabKey, field) {
   const key = `${tabKey}:${field}`;
   const wrapper = document.createElement('div'); wrapper.className = 'json-dropdown-wrapper';
   wrapper.addEventListener('click', event => event.stopPropagation());
-  const selected = geomaterialsFilterBucket('dropdown', tabKey)[field] || [];
+  const selected = jsonThemeFilterBucket('dropdown', tabKey)[field] || [];
   const trigger = document.createElement('button');
   trigger.type = 'button'; trigger.className = 'json-dropdown-trigger';
   trigger.dataset.jsonFilter = `${key}:trigger`;
   trigger.setAttribute('aria-haspopup', 'listbox');
-  trigger.setAttribute('aria-expanded', String(geomaterialsState.openDropdown === key));
+  trigger.setAttribute('aria-expanded', String(activeJsonThemeState.openDropdown === key));
   trigger.textContent = selected.length ? `${selected.length} selected` : 'Any value';
   trigger.title = selected.length ? selected.join(', ') : `Filter ${field}`;
   const panel = document.createElement('div'); panel.className = 'json-dropdown-panel';
-  panel.hidden = geomaterialsState.openDropdown !== key;
+  panel.hidden = activeJsonThemeState.openDropdown !== key;
   panel.setAttribute('role', 'group'); panel.setAttribute('aria-label', `${field} values`);
   const search = document.createElement('input'); search.type = 'search'; search.className = 'json-dropdown-search';
   search.placeholder = 'Search values'; search.setAttribute('aria-label', `Search ${field} values`);
   search.dataset.jsonFilter = `${key}:search`;
-  search.value = geomaterialsState.dropdownSearch[key] || '';
+  search.value = activeJsonThemeState.dropdownSearch[key] || '';
   const actions = document.createElement('div'); actions.className = 'json-dropdown-actions';
-  const options = [...new Set(geomaterialsDropdownRows(tabKey, field)
+  const options = [...new Set(jsonThemeDropdownRows(tabKey, field)
     .map(row => row[field]).filter(value => value != null).map(String).concat(selected))]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
   const optionList = document.createElement('div'); optionList.className = 'json-dropdown-options';
@@ -1151,7 +1171,7 @@ function buildGeomaterialsDropdown(tabKey, field) {
   optionList.setAttribute('aria-label', `${field} options`);
   const updateSearch = () => {
     const term = search.value.trim().toLocaleLowerCase();
-    geomaterialsState.dropdownSearch[key] = search.value;
+    activeJsonThemeState.dropdownSearch[key] = search.value;
     optionList.querySelectorAll('.json-dropdown-option').forEach(option => {
       option.hidden = !option.dataset.optionValue.toLocaleLowerCase().includes(term);
     });
@@ -1162,12 +1182,12 @@ function buildGeomaterialsDropdown(tabKey, field) {
     button.onclick = handler; actions.appendChild(button);
   };
   addAction('Select all', () => {
-    geomaterialsFilterBucket('dropdown', tabKey)[field] = [...options];
-    refreshGeomaterialsResults(true);
+    jsonThemeFilterBucket('dropdown', tabKey)[field] = [...options];
+    refreshJsonThemeResults(true);
   });
   addAction('Clear', () => {
-    delete geomaterialsFilterBucket('dropdown', tabKey)[field];
-    refreshGeomaterialsResults(true);
+    delete jsonThemeFilterBucket('dropdown', tabKey)[field];
+    refreshJsonThemeResults(true);
   });
   options.forEach(value => {
     const option = document.createElement('label'); option.className = 'json-dropdown-option';
@@ -1175,10 +1195,10 @@ function buildGeomaterialsDropdown(tabKey, field) {
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = selected.includes(value);
     checkbox.dataset.jsonFilter = `${key}:option:${value}`;
     checkbox.onchange = () => {
-      const next = new Set(geomaterialsFilterBucket('dropdown', tabKey)[field] || []);
+      const next = new Set(jsonThemeFilterBucket('dropdown', tabKey)[field] || []);
       if (checkbox.checked) next.add(value); else next.delete(value);
-      geomaterialsFilterBucket('dropdown', tabKey)[field] = [...next];
-      refreshGeomaterialsResults(true);
+      jsonThemeFilterBucket('dropdown', tabKey)[field] = [...next];
+      refreshJsonThemeResults(true);
     };
     const text = document.createElement('span'); text.textContent = value;
     option.append(checkbox, text); optionList.appendChild(option);
@@ -1186,33 +1206,33 @@ function buildGeomaterialsDropdown(tabKey, field) {
   if (!options.length) { const empty = document.createElement('span'); empty.className = 'json-dropdown-empty'; empty.textContent = 'No values in this view'; optionList.appendChild(empty); }
   panel.append(search, actions, optionList);
   trigger.onclick = () => {
-    const opening = geomaterialsState.openDropdown !== key;
-    geomaterialsState.openDropdown = geomaterialsState.openDropdown === key ? null : key;
-    renderGeomaterialsTable();
+    const opening = activeJsonThemeState.openDropdown !== key;
+    activeJsonThemeState.openDropdown = activeJsonThemeState.openDropdown === key ? null : key;
+    renderJsonThemeTable();
     if (opening) requestAnimationFrame(() => $('tablewrap').querySelector('.json-dropdown-search')?.focus());
   };
   wrapper.append(trigger, panel);
   return wrapper;
 }
 document.addEventListener('pointerdown', event => {
-  if (geomaterialsState.openDropdown && !event.target.closest('.json-dropdown-wrapper')) {
-    geomaterialsState.openDropdown = null;
+  if (activeJsonThemeState.openDropdown && !event.target.closest('.json-dropdown-wrapper')) {
+    activeJsonThemeState.openDropdown = null;
     document.querySelectorAll('.json-dropdown-panel:not([hidden])').forEach(panel => { panel.hidden = true; });
     document.querySelectorAll('.json-dropdown-trigger[aria-expanded="true"]').forEach(button => button.setAttribute('aria-expanded', 'false'));
   }
 });
-function geomaterialsSafeUrl(value) {
+function jsonThemeSafeUrl(value) {
   try {
     const url = new URL(value, location.href);
     return ['http:', 'https:', 'ftp:'].includes(url.protocol) ? url.href : null;
   } catch { return null; }
 }
-function geomaterialsCell(row, tabKey, field) {
-  const config = geomaterialsConfig();
+function jsonThemeCell(row, tabKey, field) {
+  const config = activeJsonThemeConfig();
   const value = row[field];
   const cellEl = document.createElement('td');
   if (value == null || value === '') { cellEl.textContent = '\u2014'; return cellEl; }
-  const rawUrl = typeof value === 'string' && /^(https?|ftp):\/\//i.test(value) ? geomaterialsSafeUrl(value) : null;
+  const rawUrl = typeof value === 'string' && /^(https?|ftp):\/\//i.test(value) ? jsonThemeSafeUrl(value) : null;
   if (rawUrl) {
     const link = document.createElement('a'); link.href = rawUrl; link.textContent = config.urlFields?.[field] || 'View';
     link.target = '_blank'; link.rel = 'noopener noreferrer'; cellEl.appendChild(link);
@@ -1223,24 +1243,24 @@ function geomaterialsCell(row, tabKey, field) {
   const computed = (config.computedLinks || []).find(definition => definition.field === field);
   if (computed) {
     const base = computed.baseKey ? config.urlBases?.[computed.baseKey] : computed.prefix;
-    const url = geomaterialsSafeUrl(`${base || ''}${encodeURIComponent(value)}${computed.suffix || ''}`);
+    const url = jsonThemeSafeUrl(`${base || ''}${encodeURIComponent(value)}${computed.suffix || ''}`);
     if (url) {
       const link = document.createElement('a'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
       link.className = 'computed-link-icon'; link.title = computed.title || 'Open link'; link.textContent = '\u2197';
       cellEl.appendChild(link);
     }
   }
-  geomaterialsState.deploymentLinks.filter(link =>
+  activeJsonThemeState.deploymentLinks.filter(link =>
     (link.sourceDeployment || config.deploymentId) === config.deploymentId &&
     link.sourceTab === tabKey && link.sourceColumn === field
   ).forEach(link => {
-    const target = geomaterialsState.deployments.find(item => item.id === link.targetDeployment);
+    const target = activeJsonThemeState.deployments.find(item => item.id === link.targetDeployment);
     const targetUrl = target?.url || link.targetUrl;
     if (!targetUrl) return;
     const state = link.filterType === 'dropdown'
       ? { dropdown: { [link.targetTab]: { [link.targetColumn]: [String(value)] } } }
       : { search: { [link.targetTab]: { [link.targetColumn]: String(value) } } };
-    const safeTarget = geomaterialsSafeUrl(targetUrl);
+    const safeTarget = jsonThemeSafeUrl(targetUrl);
     if (!safeTarget) return;
     const targetLink = document.createElement('a');
     targetLink.href = `${safeTarget.replace(/\/$/, '')}#${btoa(unescape(encodeURIComponent(JSON.stringify(state))))}`;
@@ -1253,16 +1273,16 @@ function geomaterialsCell(row, tabKey, field) {
 ///////////////////////////////////////////////////////////////////////////
 // Builds the active dataset table, aligned filters, and sortable headers.
 ///////////////////////////////////////////////////////////////////////////
-function renderGeomaterialsTable() {
-  const config = geomaterialsConfig();
-  const tab = config.tabs.find(item => item.key === geomaterialsState.tab) || config.tabs[0];
-  const rows = [...(geomaterialsState.visibleRows[tab.key] || [])];
-  const sort = geomaterialsState.sort[tab.key];
-  const focusedFilter = geomaterialsState.filterFocus || document.activeElement?.dataset.jsonFilter;
-  const selection = geomaterialsState.filterSelection;
+function renderJsonThemeTable() {
+  const config = activeJsonThemeConfig();
+  const tab = config.tabs.find(item => item.key === activeJsonThemeState.tab) || config.tabs[0];
+  const rows = [...(activeJsonThemeState.visibleRows[tab.key] || [])];
+  const sort = activeJsonThemeState.sort[tab.key];
+  const focusedFilter = activeJsonThemeState.filterFocus || document.activeElement?.dataset.jsonFilter;
+  const selection = activeJsonThemeState.filterSelection;
   if (sort) rows.sort((a, b) => String(a[sort.field] ?? '').localeCompare(String(b[sort.field] ?? ''), undefined, { numeric: true }) * (sort.direction === 'desc' ? -1 : 1));
-  const columns = Object.keys((geomaterialsState.rows[tab.key] || [])[0] || {}).filter(field => !config.hiddenColumns.includes(field));
-  const filterControls = renderGeomaterialsColumnFilters();
+  const columns = Object.keys((activeJsonThemeState.rows[tab.key] || [])[0] || {}).filter(field => !config.hiddenColumns.includes(field));
+  const filterControls = renderJsonThemeColumnFilters();
   const headerRow = document.createElement('tr');
   const zoomHead = document.createElement('th'); zoomHead.textContent = 'Zoom'; zoomHead.title = 'Zoom to record'; headerRow.appendChild(zoomHead);
   columns.forEach(field => {
@@ -1273,9 +1293,9 @@ function renderGeomaterialsTable() {
     th.setAttribute('aria-sort', sort?.field === field ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none');
     th.title = `Sort by ${field}`;
     const sortByField = () => {
-      const previous = geomaterialsState.sort[tab.key];
-      geomaterialsState.sort[tab.key] = { field, direction: previous?.field === field && previous.direction === 'asc' ? 'desc' : 'asc' };
-      renderGeomaterialsTable();
+      const previous = activeJsonThemeState.sort[tab.key];
+      activeJsonThemeState.sort[tab.key] = { field, direction: previous?.field === field && previous.direction === 'asc' ? 'desc' : 'asc' };
+      renderJsonThemeTable();
     };
     th.onclick = sortByField;
     th.onkeydown = event => {
@@ -1295,7 +1315,7 @@ function renderGeomaterialsTable() {
   const table = document.createElement('table');
   const head = table.createTHead(); head.append(headerRow, filterRow);
   table.createTBody(); wrap.appendChild(table);
-  positionOpenGeomaterialsDropdown();
+  positionOpenJsonThemeDropdown();
   if (focusedFilter) {
     const replacement = [...wrap.querySelectorAll('[data-json-filter]')]
       .find(element => element.dataset.jsonFilter === focusedFilter);
@@ -1304,14 +1324,14 @@ function renderGeomaterialsTable() {
       replacement.setSelectionRange(selection.start, selection.end);
     }
   }
-  geomaterialsState.filterFocus = null;
-  geomaterialsState.filterSelection = null;
-  geomaterialsState.visibleRows[`${tab.key}:sorted`] = rows;
-  wrap.onscroll = () => renderGeomaterialsVirtualSlice(tab.key, columns);
-  renderGeomaterialsVirtualSlice(tab.key, columns);
+  activeJsonThemeState.filterFocus = null;
+  activeJsonThemeState.filterSelection = null;
+  activeJsonThemeState.visibleRows[`${tab.key}:sorted`] = rows;
+  wrap.onscroll = () => renderJsonThemeVirtualSlice(tab.key, columns);
+  renderJsonThemeVirtualSlice(tab.key, columns);
 }
-function renderGeomaterialsVirtualSlice(tabKey, columns) {
-  const rows = geomaterialsState.visibleRows[`${tabKey}:sorted`] || [];
+function renderJsonThemeVirtualSlice(tabKey, columns) {
+  const rows = activeJsonThemeState.visibleRows[`${tabKey}:sorted`] || [];
   const wrap = $('tablewrap');
   const body = wrap.querySelector('tbody');
   if (!body) return;
@@ -1328,29 +1348,31 @@ function renderGeomaterialsVirtualSlice(tabKey, columns) {
     tr.title = 'Click to zoom to this record';
     tr.onclick = event => {
       if (event.target.closest('a, button')) return;
-      const config = geomaterialsConfig();
-      const feature = geomaterialsState.featureById.get(String(row[config.linkField]));
-      if (feature) map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 14) });
+      const config = activeJsonThemeConfig();
+      const feature = activeJsonThemeState.featureById.get(String(row[config.linkField]));
+      const center = feature && jsonGeometryCenter(feature.geometry);
+      if (center) map.flyTo({ center, zoom: Math.max(map.getZoom(), 14) });
     };
     const action = tr.insertCell();
-    const config = geomaterialsConfig();
+    const config = activeJsonThemeConfig();
     const zoom = document.createElement('button'); zoom.type = 'button'; zoom.className = 'json-row-zoom';
     zoom.title = `Zoom to ${row[config.labelField] || row[config.linkField]}`;
     zoom.setAttribute('aria-label', zoom.title);
     zoom.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.4"></circle><path d="m16 16 4.5 4.5"></path></svg>';
     zoom.onclick = () => {
-      const feature = geomaterialsState.featureById.get(String(row[config.linkField]));
-      if (feature) map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 14) });
+      const feature = activeJsonThemeState.featureById.get(String(row[config.linkField]));
+      const center = feature && jsonGeometryCenter(feature.geometry);
+      if (center) map.flyTo({ center, zoom: Math.max(map.getZoom(), 14) });
     };
     action.appendChild(zoom);
-    columns.forEach(field => tr.appendChild(geomaterialsCell(row, tabKey, field)));
+    columns.forEach(field => tr.appendChild(jsonThemeCell(row, tabKey, field)));
   });
   if (last < rows.length) {
     const spacer = body.insertRow(); const cell = spacer.insertCell(); cell.colSpan = columns.length + 1; cell.style.height = `${(rows.length - last) * rowHeight}px`; cell.style.padding = '0';
   }
 }
-let geomaterialsHelpPopover = null;
-function geomaterialsHelpContent(tab) {
+let jsonThemeHelpPopover = null;
+function jsonThemeHelpContent(tab) {
   const content = document.createElement('div');
   content.className = 'json-help-content';
   const parsed = new DOMParser().parseFromString(tab.help?.content || '', 'text/html');
@@ -1360,7 +1382,7 @@ function geomaterialsHelpContent(tab) {
     else if (allowed.has(node.nodeName)) {
       const element = document.createElement(node.nodeName.toLowerCase());
       if (node.nodeName === 'A') {
-        const href = geomaterialsSafeUrl(node.getAttribute('href'));
+        const href = jsonThemeSafeUrl(node.getAttribute('href'));
         if (href) { element.href = href; element.target = '_blank'; element.rel = 'noopener noreferrer'; }
       }
       copy(node, element); target.appendChild(element);
@@ -1369,8 +1391,8 @@ function geomaterialsHelpContent(tab) {
   copy(parsed.body, content);
   return content;
 }
-function positionGeomaterialsHelpPopover() {
-  const state = geomaterialsHelpPopover;
+function positionJsonThemeHelpPopover() {
+  const state = jsonThemeHelpPopover;
   if (!state) return;
   const bounds = state.trigger.getBoundingClientRect();
   const popover = state.element;
@@ -1380,91 +1402,91 @@ function positionGeomaterialsHelpPopover() {
   const below = bounds.bottom + 8;
   popover.style.top = `${Math.max(12, below + height <= innerHeight - 12 ? below : bounds.top - height - 8)}px`;
 }
-function showGeomaterialsHelp(tab, trigger, pin = false) {
-  if (geomaterialsHelpPopover?.trigger === trigger) {
-    clearTimeout(geomaterialsHelpPopover.closeTimer);
-    geomaterialsHelpPopover.pinned ||= pin;
+function showJsonThemeHelp(tab, trigger, pin = false) {
+  if (jsonThemeHelpPopover?.trigger === trigger) {
+    clearTimeout(jsonThemeHelpPopover.closeTimer);
+    jsonThemeHelpPopover.pinned ||= pin;
     return;
   }
-  closeGeomaterialsHelp();
+  closeJsonThemeHelp();
   const element = document.createElement('section');
   element.className = 'json-help-popover';
   element.setAttribute('role', 'dialog');
   element.setAttribute('aria-label', tab.help?.title || tab.label);
-  element.id = 'geomaterialsHelpPopover';
+  element.id = 'jsonThemeHelpPopover';
   const header = document.createElement('header');
   const title = document.createElement('strong'); title.textContent = tab.help?.title || tab.label;
   const close = document.createElement('button'); close.type = 'button'; close.className = 'json-help-close';
   close.textContent = '×'; close.setAttribute('aria-label', 'Close help');
-  close.onclick = () => closeGeomaterialsHelp(true);
+  close.onclick = () => closeJsonThemeHelp(true);
   header.append(title, close);
-  element.append(header, geomaterialsHelpContent(tab));
-  element.onpointerenter = () => clearTimeout(geomaterialsHelpPopover?.closeTimer);
-  element.onpointerleave = scheduleGeomaterialsHelpClose;
-  element.onfocusin = () => clearTimeout(geomaterialsHelpPopover?.closeTimer);
+  element.append(header, jsonThemeHelpContent(tab));
+  element.onpointerenter = () => clearTimeout(jsonThemeHelpPopover?.closeTimer);
+  element.onpointerleave = scheduleJsonThemeHelpClose;
+  element.onfocusin = () => clearTimeout(jsonThemeHelpPopover?.closeTimer);
   element.onfocusout = event => {
-    if (!element.contains(event.relatedTarget)) scheduleGeomaterialsHelpClose();
+    if (!element.contains(event.relatedTarget)) scheduleJsonThemeHelpClose();
   };
   document.body.appendChild(element);
-  geomaterialsHelpPopover = { element, trigger, pinned: pin, closeTimer: null };
+  jsonThemeHelpPopover = { element, trigger, pinned: pin, closeTimer: null };
   trigger.setAttribute('aria-expanded', 'true');
   trigger.setAttribute('aria-controls', element.id);
-  positionGeomaterialsHelpPopover();
+  positionJsonThemeHelpPopover();
 }
-function scheduleGeomaterialsHelpClose() {
-  const state = geomaterialsHelpPopover;
+function scheduleJsonThemeHelpClose() {
+  const state = jsonThemeHelpPopover;
   if (!state || state.pinned) return;
   clearTimeout(state.closeTimer);
-  state.closeTimer = setTimeout(() => closeGeomaterialsHelp(), 180);
+  state.closeTimer = setTimeout(() => closeJsonThemeHelp(), 180);
 }
-function closeGeomaterialsHelp(returnFocus = false) {
-  const state = geomaterialsHelpPopover;
+function closeJsonThemeHelp(returnFocus = false) {
+  const state = jsonThemeHelpPopover;
   if (!state) return;
   clearTimeout(state.closeTimer);
   state.trigger.setAttribute('aria-expanded', 'false');
   state.trigger.removeAttribute('aria-controls');
   state.element.remove();
-  geomaterialsHelpPopover = null;
+  jsonThemeHelpPopover = null;
   if (returnFocus) state.trigger.focus();
 }
 document.addEventListener('pointerdown', event => {
-  if (geomaterialsHelpPopover && !geomaterialsHelpPopover.element.contains(event.target) &&
-      !geomaterialsHelpPopover.trigger.contains(event.target)) closeGeomaterialsHelp();
+  if (jsonThemeHelpPopover && !jsonThemeHelpPopover.element.contains(event.target) &&
+      !jsonThemeHelpPopover.trigger.contains(event.target)) closeJsonThemeHelp();
 });
-function clearGeomaterialsFilters() {
-  geomaterialsState.filters.text = {};
-  geomaterialsState.filters.range = {};
-  geomaterialsState.filters.dropdown = {};
-  geomaterialsState.specialFilter = null;
-  geomaterialsState.sort = {};
+function clearJsonThemeFilters() {
+  activeJsonThemeState.filters.text = {};
+  activeJsonThemeState.filters.range = {};
+  activeJsonThemeState.filters.dropdown = {};
+  activeJsonThemeState.specialFilter = null;
+  activeJsonThemeState.sort = {};
   history.replaceState(null, '', `${location.pathname}${location.search}`);
-  refreshGeomaterialsResults(true);
+  refreshJsonThemeResults(true);
 }
-function geomaterialsShareState() {
+function jsonThemeShareState() {
   const center = map.getCenter();
   const range = {};
-  Object.entries(geomaterialsState.filters.range).forEach(([tabKey, fields]) => {
+  Object.entries(activeJsonThemeState.filters.range).forEach(([tabKey, fields]) => {
     range[tabKey] = {};
     Object.entries(fields).forEach(([field, value]) => {
       if (value !== '' && Number.isFinite(Number(value))) {
         range[tabKey][field] = {
           value: Number(value),
-          operator: geomaterialsState.filters.operators[tabKey]?.[field] || geomaterialsConfig().rangeFilterColumns[field]
+          operator: activeJsonThemeState.filters.operators[tabKey]?.[field] || activeJsonThemeConfig().rangeFilterColumns[field]
         };
       }
     });
     if (!Object.keys(range[tabKey]).length) delete range[tabKey];
   });
   return {
-    search: geomaterialsState.filters.text,
+    search: activeJsonThemeState.filters.text,
     range,
-    dropdown: geomaterialsState.filters.dropdown,
-    special: geomaterialsState.specialFilter,
-    hiddenTabs: [...geomaterialsState.hiddenTabs],
+    dropdown: activeJsonThemeState.filters.dropdown,
+    special: activeJsonThemeState.specialFilter,
+    hiddenTabs: [...activeJsonThemeState.hiddenTabs],
     map: { lat: center.lat, lng: center.lng, zoom: map.getZoom() }
   };
 }
-function decodeGeomaterialsHash() {
+function decodeJsonThemeHash() {
   if (!location.hash || location.hash.length > 10000) return null;
   try {
     const decoded = decodeURIComponent(escape(atob(location.hash.slice(1))));
@@ -1472,14 +1494,14 @@ function decodeGeomaterialsHash() {
   } catch { return null; }
 }
 ///////////////////////////////////////////////////////////////////////////
-// Restores validated Geomaterials filters and map position from the URL hash.
+// Restores validated JSON theme filters and map position from the URL hash.
 ///////////////////////////////////////////////////////////////////////////
-function restoreGeomaterialsState() {
-  const saved = decodeGeomaterialsHash();
+function restoreJsonThemeState() {
+  const saved = decodeJsonThemeHash();
   if (!saved || typeof saved !== 'object') return;
-  const config = geomaterialsConfig();
+  const config = activeJsonThemeConfig();
   const tabKeys = new Set(config.tabs.map(tab => tab.key));
-  const knownColumns = new Map(config.tabs.map(tab => [tab.key, new Set(Object.keys((geomaterialsState.rows[tab.key] || [])[0] || {}))]));
+  const knownColumns = new Map(config.tabs.map(tab => [tab.key, new Set(Object.keys((activeJsonThemeState.rows[tab.key] || [])[0] || {}))]));
   const filters = saved.filters || {};
   const serialized = {
     text: filters.text || saved.search,
@@ -1490,13 +1512,13 @@ function restoreGeomaterialsState() {
   ['text', 'range', 'operators', 'dropdown'].forEach(kind => {
     Object.entries(serialized[kind] || {}).forEach(([tabKey, entries]) => {
       if (!tabKeys.has(tabKey) || !entries || typeof entries !== 'object') return;
-      const target = geomaterialsFilterBucket(kind, tabKey);
+      const target = jsonThemeFilterBucket(kind, tabKey);
       Object.entries(entries).forEach(([field, value]) => {
         if (!knownColumns.get(tabKey).has(field)) return;
         if (kind === 'text' && typeof value === 'string') target[field] = value.slice(0, 500);
         else if (kind === 'range' && value !== '' && Number.isFinite(Number(typeof value === 'object' ? value.value : value))) {
           target[field] = Number(typeof value === 'object' ? value.value : value);
-          if (typeof value === 'object' && ['gte', 'lte'].includes(value.operator)) geomaterialsFilterBucket('operators', tabKey)[field] = value.operator;
+          if (typeof value === 'object' && ['gte', 'lte'].includes(value.operator)) jsonThemeFilterBucket('operators', tabKey)[field] = value.operator;
         }
         else if (kind === 'operators' && ['gte', 'lte'].includes(value)) target[field] = value;
         else if (kind === 'dropdown' && Array.isArray(value)) target[field] = value.filter(item => typeof item === 'string').slice(0, 100);
@@ -1504,10 +1526,10 @@ function restoreGeomaterialsState() {
     });
   });
   const special = saved.specialFilter || saved.special;
-  if (config.tabs.some(tab => tab.key === special && tab.specialFilter)) geomaterialsState.specialFilter = special;
+  if (config.tabs.some(tab => tab.key === special && tab.specialFilter)) activeJsonThemeState.specialFilter = special;
   if (Array.isArray(saved.hiddenTabs)) {
     const hideable = new Set(config.tabs.filter(tab => tab.hideable && !tab.isPrimary).map(tab => tab.key));
-    geomaterialsState.hiddenTabs = new Set(saved.hiddenTabs.filter(key => hideable.has(key)));
+    activeJsonThemeState.hiddenTabs = new Set(saved.hiddenTabs.filter(key => hideable.has(key)));
   }
   const center = saved.map?.center || (Number.isFinite(saved.map?.lng) && Number.isFinite(saved.map?.lat) ? [saved.map.lng, saved.map.lat] : null);
   const zoom = saved.map?.zoom;
@@ -1516,10 +1538,10 @@ function restoreGeomaterialsState() {
       Number.isFinite(zoom) && zoom >= 0 && zoom <= 28) map.jumpTo({ center, zoom });
 }
 ///////////////////////////////////////////////////////////////////////////
-// Copies the current Geomaterials filters and map view as a shareable URL.
+// Copies the current JSON theme filters and map view as a shareable URL.
 ///////////////////////////////////////////////////////////////////////////
-async function copyGeomaterialsLink() {
-  const state = btoa(unescape(encodeURIComponent(JSON.stringify(geomaterialsShareState()))));
+async function copyJsonThemeLink() {
+  const state = btoa(unescape(encodeURIComponent(JSON.stringify(jsonThemeShareState()))));
   const url = `${location.origin}${location.pathname}${location.search}#${state}`;
   try {
     await navigator.clipboard.writeText(url);
@@ -1529,16 +1551,16 @@ async function copyGeomaterialsLink() {
   }
 }
 ///////////////////////////////////////////////////////////////////////////
-// Exports the current Geomaterials result sets to a multi-sheet workbook.
+// Exports the current JSON theme result sets to a multi-sheet workbook.
 ///////////////////////////////////////////////////////////////////////////
-function exportGeomaterialsExcel() {
+function exportJsonThemeExcel() {
   if (!window.XLSX) return toast('Excel export is unavailable.');
-  const config = geomaterialsConfig();
+  const config = activeJsonThemeConfig();
   const workbook = XLSX.utils.book_new();
   config.tabs.forEach(tab => {
-    const activeRows = (geomaterialsState.rows[tab.key] || []).filter(row => geomaterialsState.finalIds.has(row[config.linkField]));
+    const activeRows = (activeJsonThemeState.rows[tab.key] || []).filter(row => activeJsonThemeState.finalIds.has(row[config.linkField]));
     const rows = tab.isPrimary || tab.exportRows === 'filtered'
-      ? filterGeomaterialsRows(tab.key, activeRows)
+      ? filterJsonThemeRows(tab.key, activeRows)
       : activeRows;
     const clean = rows.map(row => Object.fromEntries(Object.entries(row).filter(([field]) => !config.hiddenColumns.includes(field))));
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(clean), tab.label.slice(0, 31));
@@ -1546,9 +1568,9 @@ function exportGeomaterialsExcel() {
   XLSX.writeFile(workbook, `${config.title.replace(/\s+/g, '_')}_filtered.xlsx`);
   toast('Excel export prepared');
 }
-$('jsonClearBtn').onclick = clearGeomaterialsFilters;
-$('jsonCopyBtn').onclick = copyGeomaterialsLink;
-$('jsonExcelBtn').onclick = exportGeomaterialsExcel;
+$('jsonClearBtn').onclick = clearJsonThemeFilters;
+$('jsonCopyBtn').onclick = copyJsonThemeLink;
+$('jsonExcelBtn').onclick = exportJsonThemeExcel;
 const inViewGroups = [];
 ///////////////////////////////////////////////////////////////////////////
 // Builds vector layer groups and controls from the active MapLibre style.
@@ -2449,10 +2471,10 @@ function showTable(feats, label) {
 }
 function closeResults() {
   document.body.classList.remove('has-table');
-  if (geomaterialsState.active) {
-    geomaterialsState.panelClosed = true;
-    if (geomaterialsState.linkedGroup && !geomaterialsState.linkedGroup.section.classList.contains('group-hidden')) {
-      geomaterialsState.linkedGroup.setVisibility(false);
+  if (activeJsonThemeState.active) {
+    activeJsonThemeState.panelClosed = true;
+    if (activeJsonThemeState.linkedGroup && !activeJsonThemeState.linkedGroup.section.classList.contains('group-hidden')) {
+      activeJsonThemeState.linkedGroup.setVisibility(false);
     }
   }
   selected = []; shown = [];

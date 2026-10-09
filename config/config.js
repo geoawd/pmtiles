@@ -235,6 +235,10 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
       jsonTheme: 'test-deployment',
       jsonConfig: 'config/config_test_deployment.js', 
       groups: ['A Test Group']},
+    { name: 'Site Investigations',
+      jsonTheme: 'site-investigations',
+      jsonConfig: 'config/config_site_investigations.js',
+      datasets: ['bores'] },   // the geometry dataset must be on so its tiles load
 
    // { name: 'All layers' }
   ],

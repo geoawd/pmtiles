@@ -3,6 +3,7 @@
   const C = window.CONFIG;
   const datasets = C.datasets && C.datasets.length ? C.datasets : null;
   window.DATASET_LAYERS = {};
+  window.DATASET_SOURCES = {};
   if (datasets) {
     const styles = await Promise.all(datasets.map(d => fetch(d.style || C.styleUrl).then(r => {
       if (!r.ok) throw new Error(`${d.style || C.styleUrl}: ${r.status}`);
@@ -17,6 +18,7 @@
       Object.entries(s.sources || {}).forEach(([name, src]) => {
         const id = multi ? `${d.id}__${name}` : name;
         rename[name] = id;
+        (window.DATASET_SOURCES[d.id] ||= []).push(id);
         merged.sources[id] = src.type === 'vector' && d.pmtiles ? { ...src, url: 'pmtiles://' + d.pmtiles } : src;
       });
       const names = new Set();

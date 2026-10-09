@@ -160,6 +160,12 @@ let boxMode = false, justBoxed = false;
 map.on('click', e => {
   if (boxMode || justBoxed) return;
   const feats = queryData(around(e.point));
+  const geometryConfig = activeJsonThemeState.active ? activeJsonThemeConfig() : null;
+  if (geometryConfig?.geometryDataset) {
+    const hit = feats.find(f => datasetGeometryLayerIds(geometryConfig).includes(f.layer.id) &&
+      activeJsonThemeState.featureById.has(String(f.properties?.[geometryConfig.geometryLinkField || geometryConfig.linkField])));
+    if (hit) { showJsonThemePopup({ features: [hit], lngLat: e.lngLat }); return; }
+  }
   if (!feats.length) return;
   const groups = {};   // one collapsible section per layer, each with its own pager
   feats.forEach(f => (groups[f.sourceLayer || f.layer.id] ||= []).push(f));
@@ -583,8 +589,39 @@ function jsonThemeColorExpression(config) {
   expression.push(classes.at(-1)?.fill || '#2166ac');
   return expression;
 }
+///////////////////////////////////////////////////////////////////////////
+// Style layers of a deployment's `geometryDataset` that draw its `geometryLayer`.
+///////////////////////////////////////////////////////////////////////////
+function datasetGeometryLayerIds(config) {
+  const sources = window.DATASET_SOURCES?.[config.geometryDataset] || [];
+  return map.getStyle().layers
+    .filter(l => sources.includes(l.source) && l['source-layer'] === config.geometryLayer)
+    .map(l => l.id);
+}
+const geometryLayerFilters = new Map();   // layer id -> its original filter
+const geometryLayerCursor = new Set();
+// Limits the dataset's own layers to the rows left after bounds and filters; null restores them.
+function setGeometryLayerFilter(config, ids) {
+  datasetGeometryLayerIds(config).forEach(id => {
+    if (!geometryLayerFilters.has(id)) geometryLayerFilters.set(id, map.getFilter(id) || null);
+    const original = geometryLayerFilters.get(id);
+    const field = config.geometryLinkField || config.linkField;
+    const keep = ['in', ['get', field], ['literal', [...(ids || [])]]];
+    map.setFilter(id, !ids ? original : original ? ['all', original, keep] : keep);
+  });
+}
 function addJsonThemeMapLayers() {
   const ids = jsonThemeMapIds();
+  const geometryConfig = activeJsonThemeConfig();
+  if (geometryConfig.geometryDataset) {
+    datasetGeometryLayerIds(geometryConfig).forEach(id => {
+      if (geometryLayerCursor.has(id)) return;
+      geometryLayerCursor.add(id);
+      map.on('mouseenter', id, () => { if (activeJsonThemeState.active) map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+    });
+    return;
+  }
   if (!map.getSource(ids.source)) {
     const config = activeJsonThemeConfig();
     const pointOnly = activeJsonThemeState.features.length > 0 &&
@@ -654,9 +691,13 @@ function addJsonThemeMapLayers() {
 // Shows borehole details and filtered, expandable sibling results on map click.
 ///////////////////////////////////////////////////////////////////////////
 function showJsonThemePopup(event) {
-  const feature = event.features?.[0];
+  let feature = event.features?.[0];
   if (!feature) return;
   const config = activeJsonThemeConfig();
+  if (config.geometryDataset) {
+    feature = activeJsonThemeState.featureById.get(String(feature.properties[config.geometryLinkField || config.linkField]));
+    if (!feature) return;
+  }
   const primary = config.tabs.find(tab => tab.isPrimary);
   const id = feature.properties[config.linkField];
   const clickedAt = [event.lngLat.lng, event.lngLat.lat];
@@ -774,9 +815,10 @@ function loadActiveJsonThemeData() {
     activeJsonThemeState.deployments = data.deployments;
     activeJsonThemeState.deploymentLinks = data.deploymentLinks;
     const primary = config.tabs.find(tab => tab.isPrimary);
-    activeJsonThemeState.features = buildJsonFeatures(activeJsonThemeState.rows[primary.key], config, proj4);
+    activeJsonThemeState.features = config.geometryDataset ? [] : buildJsonFeatures(activeJsonThemeState.rows[primary.key], config, proj4);
     activeJsonThemeState.featureById = new Map(activeJsonThemeState.features.map(feature => [String(feature.id), feature]));
     activeJsonThemeState.loaded = true;
+    if (config.geometryDataset) harvestDatasetGeometry();
     if (activeJsonThemeState.active) {
       addJsonThemeMapLayers();
       if (!activeJsonThemeState.stateRestored) {
@@ -791,6 +833,35 @@ function loadActiveJsonThemeData() {
   });
   return activeJsonThemeState.loading;
 }
+///////////////////////////////////////////////////////////////////////////
+// For deployments with `geometryDataset`: joins loaded vector-tile features to the primary rows by link id.
+// Returns true when new geometry was found.
+///////////////////////////////////////////////////////////////////////////
+function harvestDatasetGeometry() {
+  const state = activeJsonThemeState;
+  const config = activeJsonThemeConfig();
+  if (!state.loaded || !config?.geometryDataset) return false;
+  const primary = config.tabs.find(tab => tab.isPrimary);
+  const rowsById = new Map((state.rows[primary.key] || []).map(row => [String(row[config.linkField]), row]));
+  const tileField = config.geometryLinkField || config.linkField;
+  let added = false;
+  (window.DATASET_SOURCES?.[config.geometryDataset] || []).forEach(source => {
+    if (!map.getSource(source)) return;
+    map.querySourceFeatures(source, { sourceLayer: config.geometryLayer }).forEach(tileFeature => {
+      const id = String(tileFeature.properties?.[tileField]);
+      const row = rowsById.get(id);
+      if (!row || state.featureById.has(id)) return;
+      const feature = { type: 'Feature', id, geometry: tileFeature.geometry, properties: row };
+      state.featureById.set(id, feature);
+      state.features.push(feature);
+      added = true;
+    });
+  });
+  return added;
+}
+map.on('idle', () => {
+  if (activeJsonThemeState.active && harvestDatasetGeometry()) refreshJsonThemeResults();
+});
 ///////////////////////////////////////////////////////////////////////////
 // Activates the JSON theme map layer, results panel, and theme controls.
 ///////////////////////////////////////////////////////////////////////////
@@ -827,6 +898,7 @@ function setJsonThemeActive(active) {
   updateJsonThemeLegend(active);
   const ids = jsonThemeMapIds();
   setThemeVisibility(ids.layers, active);
+  if (!active && activeJsonConfig.geometryDataset) setGeometryLayerFilter(activeJsonConfig, null);
   if (active) {
     if (!wasActive) activeJsonThemeState.panelClosed = !!activeJsonThemeState.linkedGroup?.section.classList.contains('group-hidden');
     if (!wasActive && !activeJsonThemeState.panelManuallySized) setPanelHeight(mainView.clientHeight * 0.35);
@@ -878,7 +950,7 @@ function updateJsonThemeLegend(active) {
     activeJsonThemeState.linkedGroup = linked;
   }
   const { depthGroup, linkedGroup } = activeJsonThemeState;
-  depthGroup.section.hidden = !active;
+  depthGroup.section.hidden = !active || !!config.geometryDataset;
   linkedGroup.section.hidden = !active;
   legend.prepend(depthGroup.section);
   legend.insertBefore(linkedGroup.section, depthGroup.section.nextSibling);
@@ -931,6 +1003,7 @@ function refreshJsonThemeResults(reopenPanel = false) {
   });
   const visibleFeatures = activeJsonThemeState.features.filter(feature => finalIds.has(feature.properties[config.linkField]));
   const mapIds = jsonThemeMapIds();
+  if (config.geometryDataset) setGeometryLayerFilter(config, finalIds);
   if (map.getSource(mapIds.source)) {
     map.getSource(mapIds.source).setData({ type: 'FeatureCollection', features: visibleFeatures });
   }

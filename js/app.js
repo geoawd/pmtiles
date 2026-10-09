@@ -134,7 +134,7 @@ document.querySelectorAll('.dclose').forEach(b => b.onclick = () => openTool(too
 
 // ---------- Query helpers ----------
 function dataLayers() {
-  const geojson = (CONFIG.overlays || []).filter(w => w.geojson && map.getLayer(w.id)).map(w => w.id);
+  const geojson = (CONFIG.overlays || []).filter(w => w.geojson).flatMap(w => w.layerIds || [w.id]).filter(id => map.getLayer(id));
   if (CONFIG.queryLayers) return [...CONFIG.queryLayers, ...geojson];
   const st = map.getStyle();
   return [...st.layers.filter(l => l.source && st.sources[l.source] && st.sources[l.source].type === 'vector').map(l => l.id), ...geojson];
@@ -147,7 +147,7 @@ function queryData(geom) {
   if (!layers.length) return [];
   const seen = new Set();
   return map.queryRenderedFeatures(geom, { layers }).filter(f => {
-    const overlay = (CONFIG.overlays || []).find(w => w.geojson && w.id === f.layer.id);
+    const overlay = (CONFIG.overlays || []).find(w => w.geojson && (w.layerIds || [w.id]).includes(f.layer.id));
     if (overlay) f.sourceLayer = overlay.name || overlay.id;   // popup / table heading
     const key = f.source + '|' + (f.sourceLayer || '') + '|' + (f.id ?? '') + '|' + JSON.stringify(f.properties);
     if (seen.has(key)) return false;
@@ -1969,6 +1969,19 @@ function addGeojsonLayer(w, beforeId) {
     }
   }, beforeId);
   registerLayerVisibility(w.id, w.visible === true);
+  const pointId = `${w.id}-points`;
+  map.addLayer({
+    id: pointId, type: 'circle', source: w.id,
+    filter: ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+    layout: { visibility: w.visible === true ? 'visible' : 'none' },
+    paint: {
+      'circle-radius': s.radius ?? 5, 'circle-color': s.fill || s.color || '#d9480f',
+      'circle-stroke-color': s.color || '#d9480f', 'circle-stroke-width': s.width ?? 1,
+      'circle-opacity': w.opacity ?? 1, 'circle-stroke-opacity': w.opacity ?? 1
+    }
+  }, beforeId);
+  registerLayerVisibility(pointId, w.visible === true);
+  w.layerIds = [w.id, pointId];
   fetch(w.url).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(data => {
     const from = w.projection || 'EPSG:4326';
     if (from !== 'EPSG:4326') (data.features || []).forEach(f => { if (f.geometry?.coordinates) f.geometry.coordinates = reprojectCoords(f.geometry.coordinates, from); });
@@ -2116,7 +2129,11 @@ const setOverlayTransparency = (w, v) => {
     contourOpacity = 1 - v / 100;
     if (map.getLayer(CONTOUR_LINE_ID)) map.setPaintProperty(CONTOUR_LINE_ID, 'line-opacity', contourOpacity);
     if (map.getLayer(CONTOUR_LABEL_ID)) map.setPaintProperty(CONTOUR_LABEL_ID, 'text-opacity', contourOpacity);
-  } else map.setPaintProperty(w.id, w.geojson ? 'line-opacity' : 'raster-opacity', 1 - v / 100);
+  } else if (w.geojson) {
+    map.setPaintProperty(w.id, 'line-opacity', 1 - v / 100);
+    map.setPaintProperty(`${w.id}-points`, 'circle-opacity', 1 - v / 100);
+    map.setPaintProperty(`${w.id}-points`, 'circle-stroke-opacity', 1 - v / 100);
+  } else map.setPaintProperty(w.id, 'raster-opacity', 1 - v / 100);
 };
 function removeTerrainContours() {
   [CONTOUR_LABEL_ID, CONTOUR_LINE_ID].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
@@ -2450,7 +2467,7 @@ function buildOverlayLegend() {
         if (w.contours) contoursVisible = cb.checked;
         setVis(w.layerIds || [w.id], cb.checked);
       };
-      if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility([w.id], on), el: d };
+      if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(w.layerIds || [w.id], on), el: d };
       const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
         w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : '');
       const rowEl = d.querySelector('.grprow');

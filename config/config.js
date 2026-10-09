@@ -63,6 +63,7 @@ window.CONFIG = {
 // GeoJSON outline (hollow line) layer, reprojected from Irish Grid:
 //   { id: 'g1', name: 'My boundary', group: 'Boundaries', geojson: true, url: 'data/boundary.geojson', projection: 'EPSG:29902',
 //     style: { color: '#d9480f', width: 2, dasharray: [4, 2] /* optional */ }, opacity: 1, visible: true },
+// Points in the same file: style.radius (default 5) sets the dot size, style.fill its fill (default = color), color/width its outline.
 ///////////////////////////////////////////////////////////////////////////
 
   

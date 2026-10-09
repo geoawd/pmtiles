@@ -134,9 +134,10 @@ document.querySelectorAll('.dclose').forEach(b => b.onclick = () => openTool(too
 
 // ---------- Query helpers ----------
 function dataLayers() {
-  if (CONFIG.queryLayers) return CONFIG.queryLayers;
+  const geojson = (CONFIG.overlays || []).filter(w => w.geojson && map.getLayer(w.id)).map(w => w.id);
+  if (CONFIG.queryLayers) return [...CONFIG.queryLayers, ...geojson];
   const st = map.getStyle();
-  return st.layers.filter(l => l.source && st.sources[l.source] && st.sources[l.source].type === 'vector').map(l => l.id);
+  return [...st.layers.filter(l => l.source && st.sources[l.source] && st.sources[l.source].type === 'vector').map(l => l.id), ...geojson];
 }
 ///////////////////////////////////////////////////////////////////////////
 // Queries and deduplicates rendered vector features within a screen geometry.
@@ -146,6 +147,8 @@ function queryData(geom) {
   if (!layers.length) return [];
   const seen = new Set();
   return map.queryRenderedFeatures(geom, { layers }).filter(f => {
+    const overlay = (CONFIG.overlays || []).find(w => w.geojson && w.id === f.layer.id);
+    if (overlay) f.sourceLayer = overlay.name || overlay.id;   // popup / table heading
     const key = f.source + '|' + (f.sourceLayer || '') + '|' + (f.id ?? '') + '|' + JSON.stringify(f.properties);
     if (seen.has(key)) return false;
     seen.add(key);

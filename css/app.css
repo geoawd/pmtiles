@@ -251,6 +251,7 @@
   .idhead { display: flex; align-items: center; gap: 6px; background: var(--rail-bg); color: #fff; font-size: 13px; font-weight: 600; padding: 8px 10px; cursor: pointer; user-select: none; }
   .idsec + .idsec .idhead { border-top: 1px solid rgba(255,255,255,.18); }
   .idhead:hover { background: #2b3a46; }
+  .idsec.linked .idhead { opacity: .7; }
   .idhead svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
   .idname { overflow-wrap: anywhere; }
   .idcount { font-weight: 400; opacity: .8; }

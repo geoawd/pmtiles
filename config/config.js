@@ -59,6 +59,10 @@ window.CONFIG = {
 // XYZ:  { id: 'x1', name: 'My tiles', tiles: 'https://example.org/{z}/{x}/{y}.png', maxzoom: 18 },
 // Optional on any overlay: group, opacity (0-1), visible (true/false), attribution, minzoom, maxzoom, legendUrl (image),
 //   info (https link shown as an 'i' link in the layer's panel)
+
+// GeoJSON outline (hollow line) layer, reprojected from Irish Grid:
+//   { id: 'g1', name: 'My boundary', group: 'Boundaries', geojson: true, url: 'data/boundary.geojson', projection: 'EPSG:29902',
+//     style: { color: '#d9480f', width: 2, dasharray: [4, 2] /* optional */ }, opacity: 1, visible: true },
 ///////////////////////////////////////////////////////////////////////////
 
   
@@ -159,6 +163,23 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
 
 
 ///////////////////////////////////////////////////////////////////////////
+//  Linked JSON data
+///////////////////////////////////////////////////////////////////////////
+// Joins JSON files to a vector layer. Matching rows appear in the click popup and as extra tabs in the results table.
+//   'Layer name': { field: attribute on the layer, links: [{ label, file, dataKey (array in the file; default first array), field (column in the file; default = layer field) }] }
+///////////////////////////////////////////////////////////////////////////
+
+  dataLinks: {
+    Boreholes: {
+      field: 'OBJECTID',
+      links: [
+        { label: 'Samples', file: 'data/site-investigations/samples.json', dataKey: 'si_samples' },
+        { label: 'Strata', file: 'data/site-investigations/strata.json', dataKey: 'si_strata' }
+      ]
+    }
+  },
+
+///////////////////////////////////////////////////////////////////////////
 //  Layer Metadata
 ///////////////////////////////////////////////////////////////////////////
 // Layer information (the "i" button on a layer). Key = vector layer name as in the legend, or an overlay id.
@@ -210,6 +231,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
 // and `overlays` = overlay ids. Anything not listed is switched off. A theme with no keys shows everything.
 // Groups may name a style group, configured overlay group, or named theme.
 // Examples: ['Geotechnical'], ['Geology (10K) WMS'], or ['Geology WMS'].
+// `showResults: true` opens the results table when the theme loads (default off; queries always open it).
 ///////////////////////////////////////////////////////////////////////////
 
     themes: [

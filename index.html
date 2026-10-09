@@ -14,6 +14,8 @@
   <nav id="rail" aria-label="Map tools">
     <button data-tool="legend" title="Legend and layers" aria-label="Legend and layers">
       <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></svg></button>
+    <button id="tableBtn" title="Results table on/off" aria-label="Results table" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 14.500h18M9 10v9"/></svg></button>
     <button data-tool="search" title="Search" aria-label="Search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 5 5"/></svg></button>
     <button id="boxBtn" title="Select by box (Esc to cancel)" aria-label="Select by box">
@@ -98,7 +100,7 @@
         <button id="jsonExcelBtn" class="json-action" aria-label="Export Excel" hidden>Export filtered results to XLSX</button>
         <button id="jsonCopyBtn" class="json-action" aria-label="Copy filtered map link" hidden>Copy a link to this page with filters applied</button>
         <button id="jsonClearBtn" class="json-action" aria-label="Clear filters" hidden>Clear filters</button>
-        <button id="closeBtn">Close the linked data tab</button>
+        <button id="closeBtn">Close</button>
       </div>
     </header>
     <div id="tabs"></div>

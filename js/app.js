@@ -156,8 +156,60 @@ const around = (p, r = 5) => [[p.x - r, p.y - r], [p.x + r, p.y + r]];
 const wholeMap = () => { const c = map.getCanvas(); return [[0, 0], [c.clientWidth, c.clientHeight]]; };
 
 // ---------- Click popup ----------
+// CONFIG.dataLinks: { <vector layer>: { field, links: [{ label, file, dataKey?, field? }] } } joins JSON rows to clicked / selected features.
+const linkIndexes = new Map();
+function linkIndex(link, defaultField) {
+  const field = link.field || defaultField;
+  const key = `${link.file}|${link.dataKey || ''}|${field}`;
+  if (!linkIndexes.has(key)) {
+    linkIndexes.set(key, fetch(link.file).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(json => {
+      const rows = link.dataKey ? json[link.dataKey] : Object.values(json).find(Array.isArray);
+      const index = new Map();
+      (Array.isArray(rows) ? rows : []).forEach(row => {
+        if (row[field] == null) return;
+        const k = String(row[field]);
+        if (!index.has(k)) index.set(k, []);
+        index.get(k).push(row);
+      });
+      return index;
+    }).catch(error => { linkIndexes.delete(key); throw error; }));
+  }
+  return linkIndexes.get(key);
+}
+// Returns the features grouped by layer, with each layer's linked rows (pseudo-features carrying the parent's geometry) straight after it.
+async function withLinked(feats) {
+  const layerOf = f => f.sourceLayer || f.layer.id;
+  const ordered = [];
+  for (const layer of new Set(feats.map(layerOf))) {
+    const parents = feats.filter(f => layerOf(f) === layer);
+    ordered.push(...parents, ...await linkedFor(layer, parents));
+  }
+  return ordered;
+}
+async function linkedFor(layer, parents) {
+  const out = [];
+  const def = (CONFIG.dataLinks || {})[layer];
+  if (def) {
+    for (const link of def.links || []) {
+      let index;
+      try { index = await linkIndex(link, def.field); }
+      catch (error) { toast(`Could not load linked data ${link.label || link.file}: ${error.message}`); continue; }
+      const seen = new Set();
+      parents.forEach(parent => {
+        const id = parent.properties?.[def.field];
+        if (id == null || seen.has(String(id))) return;
+        seen.add(String(id));
+        (index.get(String(id)) || []).forEach(row => out.push({
+          sourceLayer: `${layer}: ${link.label || link.file}`, linked: true, parent, parentLayer: layer, geometry: parent.geometry, properties: row
+        }));
+      });
+    }
+  }
+  return out;
+}
+
 let boxMode = false, justBoxed = false;
-map.on('click', e => {
+map.on('click', async e => {
   if (boxMode || justBoxed) return;
   const feats = queryData(around(e.point));
   const geometryConfig = activeJsonThemeState.active ? activeJsonThemeConfig() : null;
@@ -168,7 +220,7 @@ map.on('click', e => {
   }
   if (!feats.length) return;
   const groups = {};   // one collapsible section per layer, each with its own pager
-  feats.forEach(f => (groups[f.sourceLayer || f.layer.id] ||= []).push(f));
+  (await withLinked(feats)).forEach(f => (groups[f.sourceLayer || f.layer.id] ||= []).push(f));
   const wrap = document.createElement('div');
   wrap.className = 'idwrap';
   const title = document.createElement('div');
@@ -188,32 +240,43 @@ map.on('click', e => {
     sec.classList.toggle('collapsed', !expand);
     sec.querySelector('.idhead').setAttribute('aria-expanded', String(expand));
   };
+  const linkedSecs = {}, parentSyncs = [];   // linked sections only show rows of the parent record currently displayed
   Object.entries(groups).forEach(([name, list], gi) => {
-    const n = list.length;
+    let items = list;
     let i = 0;
+    const isLinked = !!list[0].linked;
     const sec = document.createElement('section');
-    sec.className = 'idsec' + (gi ? ' collapsed' : '');
+    sec.className = 'idsec' + (gi ? ' collapsed' : '') + (isLinked ? ' linked' : '');
     sec.innerHTML =
       `<div class="idhead" tabindex="0" role="button" aria-expanded="${!gi}"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>` +
-      `<span class="idname">${esc(name.replace(/_/g, ' '))}</span><span class="idcount">(${n})</span></div>` +
-      `<div class="idbody"><div class="idtab"></div><div class="pophead"${n < 2 ? ' hidden' : ''}><button class="nav" data-d="-1" aria-label="Previous record">&#9664;</button>` +
+      `<span class="idname">${esc(name.replace(/_/g, ' '))}</span><span class="idcount"></span></div>` +
+      `<div class="idbody"><div class="idtab"></div><div class="pophead"><button class="nav" data-d="-1" aria-label="Previous record">&#9664;</button>` +
       `<span class="pg"></span><button class="nav" data-d="1" aria-label="Next record">&#9654;</button></div></div>`;
     const head = sec.querySelector('.idhead');
     const toggle = () => toggleSection(sec);
     head.onclick = toggle;
     head.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); } };
     const render = () => {
+      const n = items.length;
+      sec.hidden = !n;
+      sec.querySelector('.idcount').textContent = `(${n})`;
+      sec.querySelector('.pophead').hidden = n < 2;
+      if (!n) return;
       sec.querySelector('.pg').textContent = `${i + 1} of ${n}`;
-      const entries = Object.entries(list[i].properties || {}).filter(([, v]) =>
+      const entries = Object.entries(items[i].properties || {}).filter(([, v]) =>
         v !== null && v !== undefined && (typeof v !== 'string' || v.trim() !== ''));
       sec.querySelector('.idtab').innerHTML = entries.length
         ? entries.map(([k, v]) => `<div class="arow"><div class="akey">${esc(k)}</div><div class="aval">${cell(v)}</div></div>`).join('')
         : '<div class="idempty">No attributes with values.</div>';
+      if (!isLinked) (linkedSecs[name] || []).forEach(s => s(items[i]));
     };
-    sec.querySelectorAll('.nav').forEach(b => b.onclick = () => { i = (i + Number(b.dataset.d) + n) % n; render(); });
+    if (isLinked) (linkedSecs[list[0].parentLayer] ||= []).push(parent => { items = list.filter(f => f.parent === parent); i = 0; render(); });
+    else parentSyncs.push(render);
+    sec.querySelectorAll('.nav').forEach(b => b.onclick = () => { i = (i + Number(b.dataset.d) + items.length) % items.length; render(); });
     render();
     layers.appendChild(sec);
   });
+  parentSyncs.forEach(render => render());
   new maplibregl.Popup({ maxWidth: '360px', className: 'idpop' }).setLngLat(e.lngLat).setDOMContent(wrap).addTo(map);
 });
 map.on('mousemove', e => {
@@ -549,8 +612,9 @@ function setupThemes() {
     document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
+    clearResults();
     if (t.jsonTheme) activateJsonTheme(t).catch(error => toast(`Could not load ${t.name} config: ${error.message}`));
-    else setJsonThemeActive(false);
+    else { setJsonThemeActive(false); setResults(!!t.showResults); }
     populateSearchLayers();   // search only offers the theme's layers
     updateArcgisLegendInView();
   };
@@ -575,6 +639,7 @@ async function activateJsonTheme(theme) {
   }
   activeJsonThemeState = jsonThemeStates.get(themeId);
   setJsonThemeActive(true);
+  setResults(!!(theme.showResults ?? config.showResults));
 }
 function activeJsonThemeConfig() {
   return activeJsonConfig;
@@ -739,6 +804,7 @@ function showJsonThemePopup(event) {
     );
     if (!rows.length) return;
     const section = createJsonThemePopupSection(`${tab.label} (${rows.length})`, true, content);
+    section.section.classList.add('linked');
     let current = 0;
     let pageLabel = null;
     if (rows.length > 1) {
@@ -900,11 +966,10 @@ function setJsonThemeActive(active) {
   setThemeVisibility(ids.layers, active);
   if (!active && activeJsonConfig.geometryDataset) setGeometryLayerFilter(activeJsonConfig, null);
   if (active) {
-    if (!wasActive) activeJsonThemeState.panelClosed = !!activeJsonThemeState.linkedGroup?.section.classList.contains('group-hidden');
     if (!wasActive && !activeJsonThemeState.panelManuallySized) setPanelHeight(mainView.clientHeight * 0.35);
     if (activeJsonThemeState.loaded) refreshJsonThemeResults();
     else loadActiveJsonThemeData().catch(error => toast(`Could not load ${activeJsonThemeConfig().title || 'JSON theme'} data: ${error.message}`));
-  } else if (wasActive) closeResults();
+  } else if (wasActive) clearResults();
 }
 function updateJsonThemeLegend(active) {
   const config = activeJsonThemeConfig();
@@ -930,10 +995,7 @@ function updateJsonThemeLegend(active) {
     const controls = document.createElement('div'); controls.className = 'json-special-filters';
     controls.setAttribute('role', 'group'); controls.setAttribute('aria-label', 'Linked-data filters');
     linked.body.appendChild(controls);
-    linked.onVisibilityChange = visible => {
-      activeJsonThemeState.panelClosed = !visible;
-      document.body.classList.toggle('has-table', visible && activeJsonThemeState.active);
-    };
+    linked.onVisibilityChange = visible => { if (activeJsonThemeState.active) setResults(visible); };
     const eye = linked.section.querySelector('.lgeye');
     linked.setVisibility = visible => {
       activeJsonThemeState.linkedVisible = visible;
@@ -1011,11 +1073,7 @@ function refreshJsonThemeResults(reopenPanel = false) {
   renderJsonThemeTabs();
   renderJsonThemeTable();
   $('count').textContent = `${finalIds.size} items in view`;
-  if (reopenPanel && activeJsonThemeState.panelClosed && activeJsonThemeState.linkedGroup) {
-    activeJsonThemeState.linkedGroup.setVisibility(true);
-  }
-  const linkedVisible = !activeJsonThemeState.linkedGroup?.section.classList.contains('group-hidden');
-  document.body.classList.toggle('has-table', !activeJsonThemeState.panelClosed && linkedVisible);
+  if (reopenPanel && !resultsOn) setResults(true);
 }
 map.on('moveend', () => {
   if (activeJsonThemeState.active && activeJsonThemeState.loaded) refreshJsonThemeResults();
@@ -1891,7 +1949,31 @@ function reverseWithinGroups(entries) {
 ///////////////////////////////////////////////////////////////////////////
 // Adds a configured raster overlay or basemap to the MapLibre style.
 ///////////////////////////////////////////////////////////////////////////
+function reprojectCoords(c, from) {
+  return typeof c[0] === 'number' ? proj4(from, 'EPSG:4326', c.slice(0, 2)) : c.map(x => reprojectCoords(x, from));
+}
+// GeoJSON overlay drawn as outline only (polygon edges and lines); `projection` is the file's CRS, e.g. 'EPSG:29902'.
+function addGeojsonLayer(w, beforeId) {
+  const empty = { type: 'FeatureCollection', features: [] };
+  map.addSource(w.id, { type: 'geojson', data: empty, ...(w.attribution ? { attribution: w.attribution } : {}) });
+  const s = w.style || {};
+  map.addLayer({
+    id: w.id, type: 'line', source: w.id,
+    layout: { visibility: w.visible === true ? 'visible' : 'none', 'line-join': 'round' },
+    paint: {
+      'line-color': s.color || '#d9480f', 'line-width': s.width ?? 2, 'line-opacity': w.opacity ?? 1,
+      ...(s.dasharray ? { 'line-dasharray': s.dasharray } : {})
+    }
+  }, beforeId);
+  registerLayerVisibility(w.id, w.visible === true);
+  fetch(w.url).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(data => {
+    const from = w.projection || 'EPSG:4326';
+    if (from !== 'EPSG:4326') (data.features || []).forEach(f => { if (f.geometry?.coordinates) f.geometry.coordinates = reprojectCoords(f.geometry.coordinates, from); });
+    map.getSource(w.id).setData(data);
+  }).catch(error => toast(`Could not load ${w.name || w.id}: ${error.message}`));
+}
 function addRasterLayer(w, beforeId) {
+  if (w.geojson) return addGeojsonLayer(w, beforeId);
   const tiles = Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)];
   const source = { type: 'raster', tileSize: w.tileSize || 256, tiles };
   if (w.attribution) source.attribution = w.attribution;
@@ -2031,7 +2113,7 @@ const setOverlayTransparency = (w, v) => {
     contourOpacity = 1 - v / 100;
     if (map.getLayer(CONTOUR_LINE_ID)) map.setPaintProperty(CONTOUR_LINE_ID, 'line-opacity', contourOpacity);
     if (map.getLayer(CONTOUR_LABEL_ID)) map.setPaintProperty(CONTOUR_LABEL_ID, 'text-opacity', contourOpacity);
-  } else map.setPaintProperty(w.id, 'raster-opacity', 1 - v / 100);
+  } else map.setPaintProperty(w.id, w.geojson ? 'line-opacity' : 'raster-opacity', 1 - v / 100);
 };
 function removeTerrainContours() {
   [CONTOUR_LABEL_ID, CONTOUR_LINE_ID].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
@@ -2514,7 +2596,13 @@ function centreOf(g) {
 ///////////////////////////////////////////////////////////////////////////
 // Renders vector query results as grouped, selectable feature tables.
 ///////////////////////////////////////////////////////////////////////////
-function showTable(feats, label) {
+let tableSeq = 0;
+async function showTable(feats, label) {
+  const seq = ++tableSeq;
+  const all = await withLinked(feats);
+  if (seq === tableSeq) renderTable(all, label);
+}
+function renderTable(feats, label) {
   shown = feats;
   const groups = {};
   feats.forEach(f => (groups[f.sourceLayer || f.layer.id] ||= []).push(f));
@@ -2529,7 +2617,7 @@ function showTable(feats, label) {
   } else {
     $('tabs').innerHTML = names.map(n =>
       `<button class="tab${n === activeTab ? ' on' : ''}" data-tab="${esc(n)}">${esc(n.replace(/_/g, ' '))} (${groups[n].length})</button>`).join('');
-    document.querySelectorAll('#tabs .tab').forEach(b => b.onclick = () => { activeTab = b.dataset.tab; showTable(feats, label); });
+    document.querySelectorAll('#tabs .tab').forEach(b => b.onclick = () => { activeTab = b.dataset.tab; renderTable(feats, label); });
     tabRows = groups[activeTab];
     tabCols = [...new Set(tabRows.flatMap(f => Object.keys(f.properties)))];
     wrap.innerHTML = `<table><thead><tr>${tabCols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
@@ -2546,20 +2634,34 @@ function showTable(feats, label) {
       map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 14) });
     });
   }
-  document.body.classList.add('has-table');
+  setResults(true);
+}
+// Global results panel switch (rail button); JSON themes keep their legend eye in step.
+let resultsOn = false;
+function setResults(on) {
+  resultsOn = on;
+  document.body.classList.toggle('has-table', on);
+  $('tableBtn').classList.toggle('active', on);
+  $('tableBtn').setAttribute('aria-pressed', String(on));
+  const group = activeJsonThemeState.active && activeJsonThemeState.linkedGroup;
+  if (group && activeJsonThemeState.linkedVisible !== on) group.setVisibility(on);
+  if (on && !activeJsonThemeState.active && !shown.length) {
+    $('count').textContent = '';
+    $('tabs').innerHTML = '';
+    $('tablewrap').innerHTML = '<p style="padding:10px">Click the map, draw a box or search to list features here.</p>';
+  }
+  map.resize();
 }
 function closeResults() {
-  document.body.classList.remove('has-table');
-  if (activeJsonThemeState.active) {
-    activeJsonThemeState.panelClosed = true;
-    if (activeJsonThemeState.linkedGroup && !activeJsonThemeState.linkedGroup.section.classList.contains('group-hidden')) {
-      activeJsonThemeState.linkedGroup.setVisibility(false);
-    }
-  }
-  selected = []; shown = [];
+  setResults(false);
   if (ring) { ring.remove(); ring = null; }
 }
+function clearResults() {
+  selected = []; shown = []; tabRows = []; tabCols = [];
+  closeResults();
+}
 $('closeBtn').onclick = closeResults;
+$('tableBtn').onclick = () => setResults(!resultsOn);
 $('csvBtn').onclick = () => {
   if (!tabRows.length) return;
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;

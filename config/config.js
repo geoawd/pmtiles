@@ -146,6 +146,17 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
 
 ],
 
+///////////////////////////////////////////////////////////////////////////
+//  Groups
+///////////////////////////////////////////////////////////////////////////
+// Named collections of datasets, vector layers, overlays and other groups, for use in a theme's `groups: [...]`.
+//   'Name': { datasets: [ids], layers: [source-layer names], overlays: [ids], groups: [other group names] }
+///////////////////////////////////////////////////////////////////////////
+
+  groups: {
+    'Imagery & Geophysics': { overlays: ['esri_world_imagery', 'gsni_pseudogravity', 'gsni_rtp', 'gsni_residual'] },
+  },
+
 
 ///////////////////////////////////////////////////////////////////////////
 //  Layer Metadata
@@ -222,7 +233,9 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
       groups: ['Geology WMS'] },
     { name: 'Test Deployment',
       jsonTheme: 'test-deployment',
-      jsonConfig: 'config/config_test_deployment.js' },
+      jsonConfig: 'config/config_test_deployment.js', 
+      groups: ['Imagery & Geophysics']},
+
    // { name: 'All layers' }
   ],
 

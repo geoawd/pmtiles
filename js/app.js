@@ -492,17 +492,23 @@ function jsonThemeMapIds(themeId = activeJsonThemeId) {
   ids.layers = [...ids.geometryLayers, ids.clusters, ids.clusterCount];
   return ids;
 }
-function resolveThemeGroup(name) {
+function resolveThemeGroup(name, seen = new Set()) {
+  if (seen.has(name)) return { layers: [], overlays: [] };
+  seen.add(name);
   const namedTheme = (CONFIG.themes || []).find(theme => theme.name === name);
-  const datasets = namedTheme?.datasets || [];
+  const custom = (CONFIG.groups || {})[name];   // CONFIG.groups: { name: { datasets, layers, overlays, groups } }
+  const datasets = [...(namedTheme?.datasets || []), ...(custom?.datasets || [])];
   const overlays = (CONFIG.overlays || []).filter(overlay => overlay.group === name).map(overlay => overlay.id);
+  const nested = (custom?.groups || []).map(g => resolveThemeGroup(g, seen));
   return {
     layers: [
       ...((window.LEGEND_GROUP_LAYERS || {})[name] || []),
       ...(namedTheme?.layers || []),
-      ...datasets.flatMap(id => (window.DATASET_LAYERS || {})[id] || [])
+      ...(custom?.layers || []),
+      ...datasets.flatMap(id => (window.DATASET_LAYERS || {})[id] || []),
+      ...nested.flatMap(g => g.layers)
     ],
-    overlays: [...overlays, ...(namedTheme?.overlays || [])]
+    overlays: [...overlays, ...(namedTheme?.overlays || []), ...(custom?.overlays || []), ...nested.flatMap(g => g.overlays)]
   };
 }
 ///////////////////////////////////////////////////////////////////////////
@@ -517,7 +523,7 @@ function setupThemes() {
   const apply = i => {
     const t = list[i];
     const all = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
-    const groupMembers = (t.groups || []).map(resolveThemeGroup);
+    const groupMembers = (t.groups || []).map(name => resolveThemeGroup(name));
     const themeNames = [
       ...(t.layers || []),
       ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || []),

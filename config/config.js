@@ -154,7 +154,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
 ///////////////////////////////////////////////////////////////////////////
 
   groups: {
-    'Imagery & Geophysics': { overlays: ['esri_world_imagery', 'gsni_pseudogravity', 'gsni_rtp', 'gsni_residual'] },
+    'A Test Group': { overlays: ['gsni_pseudogravity', 'Bedrock Aquifer'] },
   },
 
 
@@ -234,7 +234,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     { name: 'Test Deployment',
       jsonTheme: 'test-deployment',
       jsonConfig: 'config/config_test_deployment.js', 
-      groups: ['Imagery & Geophysics']},
+      groups: ['A Test Group']},
 
    // { name: 'All layers' }
   ],

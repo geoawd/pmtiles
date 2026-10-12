@@ -1947,7 +1947,7 @@ let originalStyleIds = null;
 function validRasterEntries(entries, label, reserved = []) {
   const ids = new Set(reserved);
   return entries.filter(w => {
-    if (!w || !w.id || (!w.url && !w.tiles)) { console.warn(`${label} skipped: needs id and url (or tiles)`, w); return false; }
+    if (!w || !w.id || (!w.url && !w.tiles && !w.cog)) { console.warn(`${label} skipped: needs id and url, tiles, or cog`, w); return false; }
     if (ids.has(w.id)) { console.warn(`${label} skipped: duplicate id`, w.id); return false; }
     ids.add(w.id);
     return true;
@@ -2014,8 +2014,9 @@ function addGeojsonLayer(w, beforeId) {
 }
 function addRasterLayer(w, beforeId) {
   if (w.geojson) return addGeojsonLayer(w, beforeId);
-  const tiles = Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)];
-  const source = { type: 'raster', tileSize: w.tileSize || 256, tiles };
+  const source = w.cog
+    ? { type: 'raster', url: `cog://${new URL(w.cog, location.href).href}`, tileSize: w.tileSize || 256 }
+    : { type: 'raster', tileSize: w.tileSize || 256, tiles: Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)] };
   if (w.attribution) source.attribution = w.attribution;
   if (Number.isFinite(w.maxzoom)) source.maxzoom = w.maxzoom;
   map.addSource(w.id, source);
@@ -2066,7 +2067,7 @@ const HILLSHADE_METHODS = [
   ['igor', 'Igor'], ['multidirectional', 'Multidirectional']
 ];
 const HILLSHADE_STYLE_DEFAULTS = {
-  method: 'standard', direction: 335, altitude: 45, anchor: 'viewport',
+  method: 'standard', direction: 335, altitude: 45, anchor: 'map',
   shadowColor: '#000000', highlightColor: '#ffffff', accentColor: '#000000'
 };
 const hillshadeStyle = { ...HILLSHADE_STYLE_DEFAULTS, ...((CONFIG.terrain || {}).hillshadeStyle || {}) };
@@ -2088,7 +2089,7 @@ function hillshadeControlsMarkup() {
       `<option value="${value}"${hillshadeStyle.method === value ? ' selected' : ''}>${label}</option>`).join('') + '</select></label>' +
     '<label class="trow">Light direction <input class="hs-direction" type="range" min="0" max="359" step="1" value="' + hillshadeStyle.direction + '"><output class="hs-direction-value">' + hillshadeStyle.direction + '°</output></label>' +
     '<label class="trow">Light altitude <input class="hs-altitude" type="range" min="0" max="90" step="1" value="' + hillshadeStyle.altitude + '"><output class="hs-altitude-value">' + hillshadeStyle.altitude + '°</output></label>' +
-    '<label class="trow">Illumination <select class="hs-anchor"><option value="viewport">Viewport</option><option value="map">Map north</option></select></label>' +
+    '<label class="trow">Illumination <select class="hs-anchor"><option value="map">Map north</option><option value="viewport">Viewport</option></select></label>' +
     '<div class="hillshade-colors">' +
       '<label>Shadow <input class="hs-shadow" type="color" value="' + esc(hillshadeStyle.shadowColor) + '"></label>' +
       '<label>Highlight <input class="hs-highlight" type="color" value="' + esc(hillshadeStyle.highlightColor) + '"></label>' +

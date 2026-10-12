@@ -70,6 +70,12 @@ window.CONFIG = {
 overlays: [
 
 ///////////////////////////////////////////////////////////////////////////
+//  Local COG raster
+///////////////////////////////////////////////////////////////////////////
+
+//{ id: 'converted_cog', name: 'Converted COG', group: 'COG Rasters', cog: 'data/converted.tif', tileSize: 256, opacity: 1, visible: true },
+
+///////////////////////////////////////////////////////////////////////////
 //  10K Layers
 ///////////////////////////////////////////////////////////////////////////
 
@@ -238,7 +244,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     themes: [
     { name: 'Boreholes', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
-      overlays: ['esri_world_imagery'] },
+      overlays: ['esri_world_imagery', 'converted_cog'] },
     { name: 'Geology', 
       layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
     { name: 'Geology WMS', 
@@ -308,7 +314,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     hillshadeVisible: true,    // start with the hillshade switched on?
     hillshadeStrength: 0.6,    // 0-1, shading strength at 0% transparency
     hillshadeStyle: {
-      method: 'standard', direction: 315, altitude: 45, anchor: 'viewport',
+      method: 'standard', direction: 315, altitude: 45, anchor: 'map',
       shadowColor: '#000000', highlightColor: '#ffffff', accentColor: '#000000'
     },
     contours: {

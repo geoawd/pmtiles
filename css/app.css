@@ -109,6 +109,8 @@
   #tablewrap th[data-sortable="true"][aria-sort="ascending"]::after { content: ' \2191'; color: var(--sec); }
   #tablewrap th[data-sortable="true"][aria-sort="descending"]::after { content: ' \2193'; color: var(--sec); }
   #tablewrap thead tr.json-filter-row th { top: 25px; padding: 3px 4px; background: #f7f9fa; }
+  #tablewrap thead tr.vector-filter-row th { top: 25px; padding: 3px 4px; background: #f7f9fa; }
+  #tablewrap .vector-filter-input { box-sizing: border-box; width: 100%; min-width: 80px; min-height: 27px; padding: 3px 5px; }
   #tablewrap .json-filter-control { min-width: 0; }
   #tablewrap tbody tr { cursor: pointer; }
   #tablewrap tbody tr:hover { background: var(--hover); }
@@ -243,7 +245,7 @@
   }
 
   /* ---- popup ---- */
-  .idpop .maplibregl-popup-content { display: flex; max-height: min(80dvh, 560px); padding: 0; overflow: hidden; border-radius: 6px; }
+  .idpop .maplibregl-popup-content { display: flex; width: min(360px, calc(100vw - 48px)); max-height: min(80dvh, 560px); padding: 0; overflow: hidden; border-radius: 6px; }
   .idwrap { display: flex; flex-direction: column; width: 100%; max-height: min(80dvh, 560px); min-width: min(320px, calc(100vw - 48px)); overflow: hidden; }
   .idtitle { flex: none; background: var(--rail-bg); color: #fff; font-size: 14px; font-weight: 600; padding: 8px 40px 8px 10px; }
   .idlayers { min-width: 0; }

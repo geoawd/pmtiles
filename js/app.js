@@ -545,6 +545,7 @@ function addGroup(parent, name) {
   return group;
 }
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
+let activeThemeName = null;
 const jsonThemeStates = new Map();
 let activeJsonThemeId = null;
 let activeJsonConfig = null;
@@ -594,6 +595,7 @@ function setupThemes() {
   sel.innerHTML = list.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
   const apply = i => {
     const t = list[i];
+    activeThemeName = t.name;
     const all = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
     const groupMembers = (t.groups || []).map(name => resolveThemeGroup(name));
     const themeNames = [
@@ -646,6 +648,20 @@ async function activateJsonTheme(theme) {
 }
 function activeJsonThemeConfig() {
   return activeJsonConfig;
+}
+function jsonThemeRows(tabKey) {
+  const rows = activeJsonThemeState.rows[tabKey] || [];
+  const config = activeJsonThemeConfig();
+  const primary = config.tabs.find(tab => tab.isPrimary);
+  if (!config.geometryDataset || tabKey !== primary.key) return rows;
+  return rows.map(row => {
+    const tileProperties = activeJsonThemeState.geometryPropertiesById.get(String(row[config.linkField]));
+    return tileProperties ? { ...tileProperties, ...row } : row;
+  });
+}
+function jsonThemeColumns(tabKey) {
+  const hidden = activeJsonThemeConfig().hiddenColumns || [];
+  return [...new Set(jsonThemeRows(tabKey).flatMap(row => Object.keys(row)))].filter(field => !hidden.includes(field));
 }
 function jsonThemeColorExpression(config) {
   const value = ['to-number', ['get', config.depthField], -1];
@@ -919,8 +935,16 @@ function harvestDatasetGeometry() {
     map.querySourceFeatures(source, { sourceLayer: config.geometryLayer }).forEach(tileFeature => {
       const id = String(tileFeature.properties?.[tileField]);
       const row = rowsById.get(id);
-      if (!row || state.featureById.has(id)) return;
-      const feature = { type: 'Feature', id, geometry: tileFeature.geometry, properties: row };
+      if (!row) return;
+      const previous = state.geometryPropertiesById.get(id) || {};
+      const tileProperties = { ...previous, ...tileFeature.properties };
+      if (Object.keys(tileProperties).length !== Object.keys(previous).length ||
+          Object.entries(tileProperties).some(([field, value]) => previous[field] !== value)) {
+        state.geometryPropertiesById.set(id, tileProperties);
+        added = true;
+      }
+      if (state.featureById.has(id)) return;
+      const feature = { type: 'Feature', id, geometry: tileFeature.geometry, properties: { ...tileProperties, ...row } };
       state.featureById.set(id, feature);
       state.features.push(feature);
       added = true;
@@ -940,6 +964,7 @@ function setJsonThemeActive(active) {
   document.body.classList.toggle('json-theme', active);
   $('jsonControls').hidden = !active;
   $('jsonExcelBtn').hidden = !active;
+  $('xlsxBtn').hidden = true;
   $('jsonCopyBtn').hidden = !active;
   $('jsonClearBtn').hidden = !active;
   $('csvBtn').hidden = active;
@@ -1036,7 +1061,7 @@ function refreshJsonThemeResults(reopenPanel = false) {
   const config = activeJsonThemeConfig();
   const primary = config.tabs.find(tab => tab.isPrimary);
   const bounds = map.getBounds();
-  const primaryRows = activeJsonThemeState.rows[primary.key] || [];
+  const primaryRows = jsonThemeRows(primary.key);
   const bounded = primaryRows.filter(row => {
     const feature = activeJsonThemeState.featureById.get(String(row[config.linkField]));
     return feature && jsonGeometryIntersectsBounds(feature.geometry, bounds);
@@ -1097,7 +1122,7 @@ function filterJsonThemeRows(tabKey, rows, exceptField = null) {
 function jsonThemeDropdownRows(tabKey, field) {
   const config = activeJsonThemeConfig();
   const primary = config.tabs.find(tab => tab.isPrimary);
-  const primaryRows = (activeJsonThemeState.rows[primary.key] || []).filter(row => activeJsonThemeState.boundedIds.has(row[config.linkField]));
+  const primaryRows = jsonThemeRows(primary.key).filter(row => activeJsonThemeState.boundedIds.has(row[config.linkField]));
   let ids = new Set(filterJsonThemeRows(primary.key, primaryRows, tabKey === primary.key ? field : null)
     .map(row => row[config.linkField]).filter(Boolean));
   config.tabs.filter(tab => !tab.isPrimary && tab.key !== tabKey && hasJsonThemeFilters(tab.key)).forEach(tab => {
@@ -1109,7 +1134,7 @@ function jsonThemeDropdownRows(tabKey, field) {
   const sourceTab = config.tabs.find(tab => tab.key === tabKey);
   const scope = sourceTab.isPrimary
     ? primaryRows.filter(row => ids.has(row[config.linkField]))
-    : (activeJsonThemeState.rows[tabKey] || []).filter(row => ids.has(row[config.linkField]));
+    : jsonThemeRows(tabKey).filter(row => ids.has(row[config.linkField]));
   return filterJsonThemeRows(tabKey, scope, field);
 }
 function renderJsonThemeControls() {
@@ -1169,9 +1194,8 @@ function appendJsonThemeFilterPill(parent, label, clear) {
 function renderJsonThemeColumnFilters() {
   const config = activeJsonThemeConfig();
   const tab = config.tabs.find(item => item.key === activeJsonThemeState.tab) || config.tabs[0];
-  const sample = (activeJsonThemeState.rows[tab.key] || [])[0] || {};
   const controlsByField = new Map();
-  Object.keys(sample).filter(field => !config.hiddenColumns.includes(field)).forEach(field => {
+  jsonThemeColumns(tab.key).forEach(field => {
     const control = document.createElement('div');
     control.className = 'json-filter-control';
     control.setAttribute('role', 'group');
@@ -1421,7 +1445,7 @@ function renderJsonThemeTable() {
   const focusedFilter = activeJsonThemeState.filterFocus || document.activeElement?.dataset.jsonFilter;
   const selection = activeJsonThemeState.filterSelection;
   if (sort) rows.sort((a, b) => String(a[sort.field] ?? '').localeCompare(String(b[sort.field] ?? ''), undefined, { numeric: true }) * (sort.direction === 'desc' ? -1 : 1));
-  const columns = Object.keys((activeJsonThemeState.rows[tab.key] || [])[0] || {}).filter(field => !config.hiddenColumns.includes(field));
+  const columns = jsonThemeColumns(tab.key);
   const filterControls = renderJsonThemeColumnFilters();
   const headerRow = document.createElement('tr');
   const zoomHead = document.createElement('th'); zoomHead.textContent = 'Zoom'; zoomHead.title = 'Zoom to record'; headerRow.appendChild(zoomHead);
@@ -1641,7 +1665,7 @@ function restoreJsonThemeState() {
   if (!saved || typeof saved !== 'object') return;
   const config = activeJsonThemeConfig();
   const tabKeys = new Set(config.tabs.map(tab => tab.key));
-  const knownColumns = new Map(config.tabs.map(tab => [tab.key, new Set(Object.keys((activeJsonThemeState.rows[tab.key] || [])[0] || {}))]));
+  const knownColumns = new Map(config.tabs.map(tab => [tab.key, new Set(jsonThemeColumns(tab.key))]));
   const filters = saved.filters || {};
   const serialized = {
     text: filters.text || saved.search,
@@ -1698,7 +1722,7 @@ function exportJsonThemeExcel() {
   const config = activeJsonThemeConfig();
   const workbook = XLSX.utils.book_new();
   config.tabs.forEach(tab => {
-    const activeRows = (activeJsonThemeState.rows[tab.key] || []).filter(row => activeJsonThemeState.finalIds.has(row[config.linkField]));
+    const activeRows = jsonThemeRows(tab.key).filter(row => activeJsonThemeState.finalIds.has(row[config.linkField]));
     const rows = tab.isPrimary || tab.exportRows === 'filtered'
       ? filterJsonThemeRows(tab.key, activeRows)
       : activeRows;
@@ -2606,7 +2630,7 @@ function runSelection(a, b) {
 }
 
 // ---------- Results panel ----------
-let activeTab = null, ring = null, shown = [], tabRows = [], tabCols = [];
+let activeTab = null, ring = null, shown = [], tabRows = [], tabCols = [], tableFilters = {};
 function centreOf(g) {
   const pts = [];
   (function walk(c) { typeof c[0] === 'number' ? pts.push(c) : c.forEach(walk); })(g.coordinates);
@@ -2619,6 +2643,7 @@ function centreOf(g) {
 let tableSeq = 0;
 async function showTable(feats, label) {
   const seq = ++tableSeq;
+  tableFilters = {};
   const all = await withLinked(feats);
   if (seq === tableSeq) renderTable(all, label);
 }
@@ -2633,26 +2658,45 @@ function renderTable(feats, label) {
   if (!feats.length) {
     $('tabs').innerHTML = '';
     wrap.innerHTML = '<p style="padding:10px">No features found. Try a bigger box or zoom in on the area first.</p>';
+    $('xlsxBtn').hidden = true;
     tabRows = []; tabCols = [];
   } else {
     $('tabs').innerHTML = names.map(n =>
       `<button class="tab${n === activeTab ? ' on' : ''}" data-tab="${esc(n)}">${esc(n.replace(/_/g, ' '))} (${groups[n].length})</button>`).join('');
     document.querySelectorAll('#tabs .tab').forEach(b => b.onclick = () => { activeTab = b.dataset.tab; renderTable(feats, label); });
-    tabRows = groups[activeTab];
-    tabCols = [...new Set(tabRows.flatMap(f => Object.keys(f.properties)))];
-    wrap.innerHTML = `<table><thead><tr>${tabCols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>` +
-      tabRows.map((f, i) => `<tr data-i="${i}" title="Click to zoom to this record">${tabCols.map(c => `<td>${cell(f.properties[c])}</td>`).join('')}</tr>`).join('') +
-      '</tbody></table>';
-    wrap.querySelectorAll('tbody tr').forEach(tr => tr.onclick = ev => {
-      if (ev.target.closest('a')) return;
-      const f = tabRows[tr.dataset.i];
-      if (!f.geometry) return;
-      const c = centreOf(f.geometry);
-      if (ring) ring.remove();
-      const el = document.createElement('div'); el.className = 'ring';
-      ring = new maplibregl.Marker({ element: el }).setLngLat(c).addTo(map);
-      map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 14) });
+    const sourceRows = groups[activeTab];
+    tabCols = [...new Set(sourceRows.flatMap(f => Object.keys(f.properties)))];
+    const searchable = activeThemeName === 'Boreholes' && activeTab === 'Boreholes';
+    $('xlsxBtn').hidden = !searchable;
+    const filterRow = searchable
+      ? `<tr class="vector-filter-row">${tabCols.map(field => `<th><input class="vector-filter-input" type="search" data-field="${esc(field)}" aria-label="Search ${esc(field)}" placeholder="Search" value="${esc(tableFilters[field] || '')}"></th>`).join('')}</tr>`
+      : '';
+    wrap.innerHTML = `<table><thead><tr>${tabCols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>${filterRow}</thead><tbody></tbody></table>`;
+    const renderRows = () => {
+      const filters = searchable ? Object.entries(tableFilters).filter(([, value]) => value) : [];
+      tabRows = sourceRows.filter(feature => filters.every(([field, value]) =>
+        String(feature.properties[field] ?? '').toLocaleLowerCase().includes(value.toLocaleLowerCase())
+      ));
+      const body = wrap.querySelector('tbody');
+      body.innerHTML = tabRows.map((feature, index) =>
+        `<tr data-i="${index}" title="Click to zoom to this record">${tabCols.map(field => `<td>${cell(feature.properties[field])}</td>`).join('')}</tr>`
+      ).join('');
+      body.querySelectorAll('tr').forEach(tr => tr.onclick = event => {
+        if (event.target.closest('a')) return;
+        const feature = tabRows[tr.dataset.i];
+        if (!feature.geometry) return;
+        const center = centreOf(feature.geometry);
+        if (ring) ring.remove();
+        const element = document.createElement('div'); element.className = 'ring';
+        ring = new maplibregl.Marker({ element }).setLngLat(center).addTo(map);
+        map.flyTo({ center, zoom: Math.max(map.getZoom(), 14) });
+      });
+    };
+    wrap.querySelectorAll('.vector-filter-input').forEach(input => input.oninput = () => {
+      tableFilters[input.dataset.field] = input.value;
+      renderRows();
     });
+    renderRows();
   }
   setResults(true);
 }
@@ -2678,10 +2722,20 @@ function closeResults() {
 }
 function clearResults() {
   selected = []; shown = []; tabRows = []; tabCols = [];
+  $('xlsxBtn').hidden = true;
   closeResults();
 }
 $('closeBtn').onclick = closeResults;
 $('tableBtn').onclick = () => setResults(!resultsOn);
+$('xlsxBtn').onclick = () => {
+  if (!window.XLSX) return toast('Excel export is unavailable.');
+  if (!tabRows.length) return;
+  const rows = tabRows.map(feature => Object.fromEntries(tabCols.map(field => [field, feature.properties[field] ?? ''])));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), (activeTab || 'Boreholes').slice(0, 31));
+  XLSX.writeFile(workbook, 'Boreholes_filtered.xlsx');
+  toast('Excel export prepared');
+};
 $('csvBtn').onclick = () => {
   if (!tabRows.length) return;
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;

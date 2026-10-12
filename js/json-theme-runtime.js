@@ -28,6 +28,7 @@ export function createJsonThemeState() {
     rows: {},
     features: [],
     featureById: new Map(),
+    geometryPropertiesById: new Map(),
     errors: {},
     tab: null,
     hiddenTabs: new Set(),

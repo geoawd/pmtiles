@@ -2596,6 +2596,16 @@ boxBtn.onclick = () => {
   if (!boxMode && tool && isMobile()) openTool(tool);   // get the menu out of the way on phones
   setBox(!boxMode);
 };
+$('globeBtn').onclick = () => {
+  const globe = $('globeBtn');
+  const enabled = globe.getAttribute('aria-pressed') !== 'true';
+  map.setProjection({ type: enabled ? 'globe' : 'mercator' });
+  globe.classList.toggle('active', enabled);
+  globe.setAttribute('aria-pressed', String(enabled));
+  const label = enabled ? 'Switch to Mercator view' : 'Switch to globe view';
+  globe.title = label;
+  globe.setAttribute('aria-label', label);
+};
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && boxMode) setBox(false); });
 
 const pos = e => { const r = mapBox.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };

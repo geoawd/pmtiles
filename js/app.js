@@ -773,6 +773,8 @@ function setupThemes() {
       const inTheme = activeThemeAll || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
+    additions.layers.forEach(id => ctl.data[id]?.set(true));
+    additions.overlays.forEach(id => ctl.ov[id]?.set(true));
     document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
@@ -782,6 +784,7 @@ function setupThemes() {
     else { setJsonThemeActive(false); setResults(!!t.showResults); }
     populateSearchLayers();   // search only offers the theme's layers
     updateArcgisLegendInView();
+    syncMapLayerOrder();
   };
   sel.onchange = () => apply(sel.value);
   const firstJsonTheme = list.findIndex(theme => theme.jsonTheme && theme.jsonConfig);
@@ -888,7 +891,7 @@ function applySelectedThemeData() {
       if (control) {
         control.theme(true);
         control.el.hidden = false;
-        setVis([id], true);
+        control.set(true);
       }
     }
   });
@@ -900,6 +903,7 @@ function applySelectedThemeData() {
   updateManualRemovalControls();
   populateSearchLayers();
   updateArcgisLegendInView();
+  syncMapLayerOrder();
   closeAddDataPanel();
 }
 function openAddDataPanel() {
@@ -2781,11 +2785,14 @@ function buildOverlayLegend() {
       d.title = `Drag to reorder ${w.name || w.id}`;
       d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${w.visible === true ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
       const cb = d.querySelector('input');
-      cb.onchange = () => {
+      const layerIds = w.layerIds || [w.id];
+      const setOverlayVisibility = on => {
+        cb.checked = on;
         if (w.contours) contoursVisible = cb.checked;
-        setVis(w.layerIds || [w.id], cb.checked);
+        setVis(layerIds, on);
       };
-      if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(w.layerIds || [w.id], on), el: d };
+      cb.onchange = () => setOverlayVisibility(cb.checked);
+      if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(layerIds, on), set: setOverlayVisibility, el: d };
       const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
         w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : '');
       const rowEl = d.querySelector('.grprow');
@@ -2799,7 +2806,7 @@ function buildOverlayLegend() {
       if (w.legendUrl) d.insertAdjacentHTML('beforeend', `<img src="${esc(w.legendUrl)}" alt="" style="max-width:100%;margin:2px 0 4px 20px">`);
       else renderArcgisLegend(d, w);
       body.appendChild(d);
-      (w.layerIds || [w.id]).forEach(id => group.layerIds.add(id));
+      layerIds.forEach(id => group.layerIds.add(id));
     });
     const hasTerrain = list.some(w => w.terrain);
     if (hasTerrain) group.onVisibilityChange = visible => {

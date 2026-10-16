@@ -838,7 +838,7 @@ function renderAddDataPicker() {
     $('addDataApply').disabled = true;
     return;
   }
-  groups.forEach((items, name) => {
+  [...groups].sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' })).forEach(([name, items]) => {
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'add-data-group';
     const legend = document.createElement('legend');

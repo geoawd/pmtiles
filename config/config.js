@@ -150,6 +150,9 @@ layers: '7', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
 { id: 'gsni_residual', name: 'Residual', group: 'Geophysics',
 url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
 layers: '3', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+ { id: 'lot1_ortho_ni', name: 'NI Coastal Orthophotography', group: 'Imagery',
+tiles: 'https://tiles-eu1.arcgis.com/kswen6BYexuc1SUk/arcgis/rest/services/Lot1_Ortho_NI/MapServer/tile/{z}/{y}/{x}?cacheKey=b4dc3f34e50f87a9',
+maxzoom: 23, opacity: 1, visible: false, attribution: '&copy; DAERA, Bluesky' },
 { id: 'esri_world_imagery', name: 'ESRI World Imagery', group: 'Imagery',
 tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 opacity: 0.6, visible: false,
@@ -244,7 +247,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     themes: [
     { name: 'Boreholes', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
-      overlays: ['esri_world_imagery', 'converted_cog'] },
+      overlays: ['esri_world_imagery', 'converted_cog', 'lot1_ortho_ni'] },
     { name: 'Geology', 
       layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
     { name: 'Geology WMS', 

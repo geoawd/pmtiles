@@ -511,6 +511,7 @@ function setTransparency(sl, pct) {
   }));
 }
 const ICON_CHEV = '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>';
+const ICON_MINUS = '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>';
 function collapser(target, startCollapsed) {   // chevron that collapses a layer's classes / panel
   const b = document.createElement('button');
   b.className = 'cbtn'; b.innerHTML = ICON_CHEV; b.title = 'Collapse or expand';
@@ -529,10 +530,12 @@ function addGroup(parent, name) {
   sec.dataset.groupName = name;
   sec.innerHTML = `<h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>${esc(name)}</span>` +
     `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>` +
+    `<button class="lremove" type="button" hidden title="Remove manually added layers from ${esc(name)}" aria-label="Remove manually added layers from ${esc(name)}">${ICON_MINUS}</button>` +
     `<button class="lgeye" type="button" aria-pressed="false" title="Hide ${esc(name)}" aria-label="Hide ${esc(name)}">${ICON_EYE}</button></h4>` +
     '<div class="lgbody"></div>';
   const group = { key: `legend-group-${++groupSequence}`, body: sec.querySelector('.lgbody'), layerIds: new Set(), onVisibilityChange: null };
   const collapse = sec.querySelector('.lgcollapse');
+  const remove = sec.querySelector('.lremove');
   const eye = sec.querySelector('.lgeye');
   const head = sec.querySelector('.lghead');
   head.draggable = true;
@@ -553,6 +556,7 @@ function addGroup(parent, name) {
     setGroupVisibility([...group.layerIds], group.key, visible);
     if (group.onVisibilityChange) group.onVisibilityChange(visible);
   };
+  remove.onclick = event => { event.stopPropagation(); removeManualGroupAdditions(sec); };
   eye.onclick = () => group.setVisibility(!visible);
   parent.appendChild(sec);
   return group;
@@ -560,16 +564,29 @@ function addGroup(parent, name) {
 function enableLegendReordering() {
   const root = $('legend');
   let dragged = null;
+  let dragHandle = null;
   let moved = false;
-  root.addEventListener('dragstart', event => {
-    const groupHead = event.target.closest('.lghead');
+  root.addEventListener('pointerdown', event => {
+    const groupName = event.target.closest('.lgcollapse span');
+    const groupHead = groupName?.closest('.lghead');
     if (groupHead?.parentElement?.parentElement === root) {
-      dragged = { type: 'group', element: groupHead.parentElement };
-    } else {
-      const item = event.target.closest('.lgbody > [data-order-key]');
-      if (!item) return;
-      dragged = { type: 'item', element: item };
+      dragHandle = { type: 'group', element: groupHead.parentElement };
+      return;
     }
+    const item = event.target.closest('.lgbody > [data-order-key]');
+    const layerName = event.target.closest('.lname span');
+    dragHandle = item && layerName && item.contains(layerName) ? { type: 'item', element: item } : null;
+  });
+  root.addEventListener('pointerup', () => { dragHandle = null; });
+  root.addEventListener('pointercancel', () => { dragHandle = null; });
+  root.addEventListener('dragstart', event => {
+    if (!dragHandle || !dragHandle.element.contains(event.target)) {
+      event.preventDefault();
+      dragHandle = null;
+      return;
+    }
+    dragged = dragHandle;
+    dragHandle = null;
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', dragged.element.dataset.orderKey);
     dragged.element.classList.add('dragging');
@@ -599,6 +616,7 @@ function enableLegendReordering() {
     root.querySelectorAll('.dragging, .drop-before, .drop-after').forEach(element => element.classList.remove('dragging', 'drop-before', 'drop-after'));
     if (moved) syncMapLayerOrder();
     dragged = null;
+    dragHandle = null;
     moved = false;
   });
 }
@@ -622,9 +640,11 @@ function syncMapLayerOrder() {
   }
 }
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
+let themeBaseLayers = [];
 let activeThemeName = null;
 let activeThemeAll = false;
 let themeOverlays = [];
+let themeBaseOverlays = [];
 const THEME_ADDITIONS_KEY = 'mapviewer.theme-additions.v1';
 const themeAdditions = (() => {
   try {
@@ -641,6 +661,46 @@ function saveThemeAdditions() {
       [...themeAdditions].map(([name, additions]) => [name, { layers: [...additions.layers], overlays: [...additions.overlays] }])
     )));
   } catch { toast('Theme additions could not be saved in this browser.'); }
+}
+function updateManualRemovalControls() {
+  const additions = themeAdditions.get(activeThemeName);
+  document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(group => {
+    const removable = !activeThemeAll && additions && [...group.querySelector('.lgbody').children].some(item => {
+      const key = item.dataset.orderKey || '';
+      return key.startsWith('layer:') ? additions.layers.has(key.slice(6))
+        : key.startsWith('overlay:') && additions.overlays.has(key.slice(8));
+    });
+    group.querySelector('.lremove').hidden = !removable;
+  });
+}
+function removeManualGroupAdditions(group) {
+  if (!activeThemeName || activeThemeAll) return;
+  const additions = themeAdditions.get(activeThemeName);
+  if (!additions) return;
+  [...group.querySelector('.lgbody').children].forEach(item => {
+    const key = item.dataset.orderKey || '';
+    if (key.startsWith('layer:')) additions.layers.delete(key.slice(6));
+    else if (key.startsWith('overlay:')) additions.overlays.delete(key.slice(8));
+  });
+  themeLayers = [...new Set([...themeBaseLayers, ...additions.layers])];
+  themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];
+  saveThemeAdditions();
+  Object.entries(ctl.data).forEach(([id, control]) => {
+    const inTheme = themeLayers.includes(id);
+    control.theme(inTheme);
+    control.el.hidden = !inTheme;
+  });
+  Object.entries(ctl.ov).forEach(([id, control]) => {
+    const inTheme = themeOverlays.includes(id);
+    control.theme(inTheme);
+    control.el.hidden = !inTheme;
+  });
+  document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(section => {
+    section.hidden = ![...section.querySelectorAll('.lgbody > *')].some(item => !item.hidden);
+  });
+  updateManualRemovalControls();
+  populateSearchLayers();
+  updateArcgisLegendInView();
 }
 const jsonThemeStates = new Map();
 let activeJsonThemeId = null;
@@ -700,8 +760,10 @@ function setupThemes() {
       ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || []),
       ...groupMembers.flatMap(group => group.layers)
     ];
-    themeOverlays = [...new Set([...(t.overlays || []), ...groupMembers.flatMap(group => group.overlays), ...additions.overlays])];
-    themeLayers = activeThemeAll ? null : [...new Set([...themeNames, ...additions.layers])];
+    themeBaseOverlays = [...new Set([...(t.overlays || []), ...groupMembers.flatMap(group => group.overlays)])];
+    themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];
+    themeBaseLayers = [...new Set(themeNames)];
+    themeLayers = activeThemeAll ? null : [...new Set([...themeBaseLayers, ...additions.layers])];
     // Theme membership gates rendering without changing the user's checkbox state.
     Object.entries(ctl.data).forEach(([sl, o]) => {
       const inTheme = activeThemeAll || themeLayers.includes(sl);
@@ -714,6 +776,7 @@ function setupThemes() {
     document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
+    updateManualRemovalControls();
     clearResults();
     if (t.jsonTheme) activateJsonTheme(t).catch(error => toast(`Could not load ${t.name} config: ${error.message}`));
     else { setJsonThemeActive(false); setResults(!!t.showResults); }
@@ -834,6 +897,7 @@ function applySelectedThemeData() {
   document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(group => {
     group.hidden = ![...group.querySelectorAll('.lgbody > *')].some(item => !item.hidden);
   });
+  updateManualRemovalControls();
   populateSearchLayers();
   updateArcgisLegendInView();
   closeAddDataPanel();

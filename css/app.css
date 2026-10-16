@@ -142,9 +142,8 @@
   .lgroup { margin-bottom: 10px; }
   .lghead { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 0; padding: 0 3px 0 0; background: var(--rail-bg); color: #fff; font-size: 13px; font-weight: 600; border-radius: 5px; user-select: none; }
   .lghead:hover { background: #2b3a46; }
-  #legend .lghead, #legend .lgcollapse, #legend .lgbody > [draggable="true"] { cursor: grab; }
-  #legend .lghead:active, #legend .lgcollapse:active, #legend .lgbody > [draggable="true"]:active { cursor: grabbing; }
-  #legend .lgbody > [draggable="true"] { cursor: grab; }
+  #legend .lgcollapse span, #legend .lgbody > [draggable="true"] .lname span { cursor: grab; }
+  #legend .lgcollapse span:active, #legend .lgbody > [draggable="true"] .lname span:active { cursor: grabbing; }
   #legend .dragging { opacity: .45; }
   #legend .drop-before { border-top: 2px solid var(--sec); }
   #legend .drop-after { border-bottom: 2px solid var(--sec); }
@@ -153,6 +152,9 @@
   .lgcollapse span { min-width: 0; overflow-wrap: anywhere; }
   .lghead svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
   .lgroup.collapsed .lgcollapse svg { transform: rotate(-90deg); }
+  .lremove { width: 28px; height: 28px; flex: none; padding: 5px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; }
+  .lremove[hidden] { display: none; }
+  .lremove:hover { background: rgba(255,255,255,.16); }
   .lgeye { width: 28px; height: 28px; flex: none; padding: 5px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; }
   .lgeye:hover, .lgeye[aria-pressed=true] { background: rgba(255,255,255,.16); }
   .lghead .lgeye svg { width: 17px; height: 17px; }

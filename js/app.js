@@ -128,6 +128,14 @@ function openTool(name) {
   if (tool === 'about') loadThirdPartyNotices();
   if (tool === 'search') { updateSearchFields(); if (!isMobile()) $('searchText').focus(); }
   if (tool && boxMode) setBox(false);
+  syncAddDataButton();
+}
+function syncAddDataButton() {
+  const button = $('addDataBtn');
+  if (!button) return;
+  const active = tool === 'legend' && !$('addDataPanel').hidden;
+  button.classList.toggle('active', active);
+  button.setAttribute('aria-pressed', String(active));
 }
 document.querySelectorAll('#rail [data-tool]').forEach(b => b.onclick = () => openTool(b.dataset.tool));
 document.querySelectorAll('.dclose').forEach(b => b.onclick = () => openTool(tool));
@@ -517,6 +525,8 @@ let groupSequence = 0;
 function addGroup(parent, name) {
   const sec = document.createElement('section');
   sec.className = 'lgroup';
+  sec.dataset.orderKey = `group:${name}`;
+  sec.dataset.groupName = name;
   sec.innerHTML = `<h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>${esc(name)}</span>` +
     `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>` +
     `<button class="lgeye" type="button" aria-pressed="false" title="Hide ${esc(name)}" aria-label="Hide ${esc(name)}">${ICON_EYE}</button></h4>` +
@@ -524,6 +534,9 @@ function addGroup(parent, name) {
   const group = { key: `legend-group-${++groupSequence}`, body: sec.querySelector('.lgbody'), layerIds: new Set(), onVisibilityChange: null };
   const collapse = sec.querySelector('.lgcollapse');
   const eye = sec.querySelector('.lgeye');
+  const head = sec.querySelector('.lghead');
+  head.draggable = true;
+  head.title = 'Drag to reorder group';
   collapse.onclick = () => {
     const collapsed = sec.classList.toggle('collapsed');
     collapse.setAttribute('aria-expanded', String(!collapsed));
@@ -544,8 +557,91 @@ function addGroup(parent, name) {
   parent.appendChild(sec);
   return group;
 }
+function enableLegendReordering() {
+  const root = $('legend');
+  let dragged = null;
+  let moved = false;
+  root.addEventListener('dragstart', event => {
+    const groupHead = event.target.closest('.lghead');
+    if (groupHead?.parentElement?.parentElement === root) {
+      dragged = { type: 'group', element: groupHead.parentElement };
+    } else {
+      const item = event.target.closest('.lgbody > [data-order-key]');
+      if (!item) return;
+      dragged = { type: 'item', element: item };
+    }
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', dragged.element.dataset.orderKey);
+    dragged.element.classList.add('dragging');
+    moved = false;
+  });
+  root.addEventListener('dragover', event => {
+    if (!dragged) return;
+    root.querySelectorAll('.drop-before, .drop-after').forEach(element => element.classList.remove('drop-before', 'drop-after'));
+    const group = event.target.closest('.lgroup');
+    if (dragged.type === 'group' && group?.parentElement === root && group !== dragged.element) {
+      event.preventDefault();
+      const after = event.clientY > group.getBoundingClientRect().top + group.offsetHeight / 2;
+      group.classList.add(after ? 'drop-after' : 'drop-before');
+      const anchor = after ? group.nextSibling : group;
+      if (anchor !== dragged.element) { root.insertBefore(dragged.element, anchor); moved = true; }
+      return;
+    }
+    const target = event.target.closest('.lgbody > [data-order-key]');
+    if (dragged.type !== 'item' || !target || target === dragged.element || target.parentElement !== dragged.element.parentElement) return;
+    event.preventDefault();
+    const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+    target.classList.add(after ? 'drop-after' : 'drop-before');
+    const anchor = after ? target.nextSibling : target;
+    if (anchor !== dragged.element) { target.parentElement.insertBefore(dragged.element, anchor); moved = true; }
+  });
+  root.addEventListener('dragend', () => {
+    root.querySelectorAll('.dragging, .drop-before, .drop-after').forEach(element => element.classList.remove('dragging', 'drop-before', 'drop-after'));
+    if (moved) syncMapLayerOrder();
+    dragged = null;
+    moved = false;
+  });
+}
+function syncMapLayerOrder() {
+  const groups = [...$('legend').children].filter(group => group.matches('.lgroup'));
+  const blocks = groups.reverse().flatMap(group => [...group.querySelector('.lgbody').children].reverse().flatMap(item => {
+    const key = item.dataset.orderKey || '';
+    if (key.startsWith('layer:')) {
+      const sourceLayer = item.dataset.sl;
+      return map.getStyle().layers.filter(layer => layer['source-layer'] === sourceLayer).map(layer => layer.id);
+    }
+    const id = key.replace(/^(overlay|basemap):/, '');
+    const overlay = allOverlays().find(entry => entry.id === id);
+    return (overlay?.layerIds || [id]).filter(layerId => map.getLayer(layerId));
+  }));
+  const layers = [...new Set(blocks.filter(id => map.getLayer(id)))];
+  let beforeId;
+  for (let index = layers.length - 1; index >= 0; index -= 1) {
+    map.moveLayer(layers[index], beforeId);
+    beforeId = layers[index];
+  }
+}
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
 let activeThemeName = null;
+let activeThemeAll = false;
+let themeOverlays = [];
+const THEME_ADDITIONS_KEY = 'mapviewer.theme-additions.v1';
+const themeAdditions = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(THEME_ADDITIONS_KEY) || '{}');
+    return new Map(Object.entries(saved).map(([name, additions]) => [name, {
+      layers: new Set(Array.isArray(additions.layers) ? additions.layers.filter(value => typeof value === 'string') : []),
+      overlays: new Set(Array.isArray(additions.overlays) ? additions.overlays.filter(value => typeof value === 'string') : [])
+    }]));
+  } catch { return new Map(); }
+})();
+function saveThemeAdditions() {
+  try {
+    localStorage.setItem(THEME_ADDITIONS_KEY, JSON.stringify(Object.fromEntries(
+      [...themeAdditions].map(([name, additions]) => [name, { layers: [...additions.layers], overlays: [...additions.overlays] }])
+    )));
+  } catch { toast('Theme additions could not be saved in this browser.'); }
+}
 const jsonThemeStates = new Map();
 let activeJsonThemeId = null;
 let activeJsonConfig = null;
@@ -596,22 +692,23 @@ function setupThemes() {
   const apply = i => {
     const t = list[i];
     activeThemeName = t.name;
-    const all = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
+    activeThemeAll = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
+    const additions = themeAdditions.get(t.name) || { layers: new Set(), overlays: new Set() };
     const groupMembers = (t.groups || []).map(name => resolveThemeGroup(name));
     const themeNames = [
       ...(t.layers || []),
       ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || []),
       ...groupMembers.flatMap(group => group.layers)
     ];
-    const themeOverlays = [...(t.overlays || []), ...groupMembers.flatMap(group => group.overlays)];
-    themeLayers = all ? null : themeNames;
+    themeOverlays = [...new Set([...(t.overlays || []), ...groupMembers.flatMap(group => group.overlays), ...additions.overlays])];
+    themeLayers = activeThemeAll ? null : [...new Set([...themeNames, ...additions.layers])];
     // Theme membership gates rendering without changing the user's checkbox state.
     Object.entries(ctl.data).forEach(([sl, o]) => {
-      const inTheme = all || themeNames.includes(sl);
+      const inTheme = activeThemeAll || themeLayers.includes(sl);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
     Object.entries(ctl.ov).forEach(([id, o]) => {
-      const inTheme = all || themeOverlays.includes(id);
+      const inTheme = activeThemeAll || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
     document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them
@@ -630,6 +727,132 @@ function setupThemes() {
   sel.value = initialTheme;
   apply(sel.value);
 }
+function renderAddDataPicker() {
+  const list = $('addDataList');
+  list.replaceChildren();
+  if (!activeThemeName) return;
+  if (activeThemeAll) {
+    const message = document.createElement('p');
+    message.className = 'hint';
+    message.textContent = 'This theme already includes all available data.';
+    list.appendChild(message);
+    $('addDataApply').disabled = true;
+    return;
+  }
+  const groups = new Map();
+  const add = (kind, id, control) => {
+    const group = control.el.closest('.lgroup')?.dataset.groupName || 'Other';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push({ kind, id, label: kind === 'layer' ? id.replace(/_/g, ' ') : control.el.querySelector('.lname span')?.textContent || id });
+  };
+  Object.entries(ctl.data).forEach(([id, control]) => {
+    if (!themeLayers.includes(id)) add('layer', id, control);
+  });
+  Object.entries(ctl.ov).forEach(([id, control]) => {
+    if (!themeOverlays.includes(id)) add('overlay', id, control);
+  });
+  if (!groups.size) {
+    const message = document.createElement('p');
+    message.className = 'hint';
+    message.textContent = 'No additional layers are available for this theme.';
+    list.appendChild(message);
+    $('addDataApply').disabled = true;
+    return;
+  }
+  groups.forEach((items, name) => {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'add-data-group';
+    const legend = document.createElement('legend');
+    const groupLabel = document.createElement('label');
+    const groupInput = document.createElement('input');
+    groupInput.type = 'checkbox';
+    groupInput.dataset.groupCheck = 'true';
+    groupLabel.append(groupInput, document.createTextNode(name));
+    legend.appendChild(groupLabel);
+    fieldset.appendChild(legend);
+    const itemInputs = [];
+    items.forEach(item => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.dataset.kind = item.kind;
+      input.dataset.id = item.id;
+      const text = document.createElement('span');
+      text.textContent = item.label;
+      label.append(input, text);
+      fieldset.appendChild(label);
+      itemInputs.push(input);
+    });
+    const updateGroup = () => {
+      const selected = itemInputs.filter(input => input.checked).length;
+      groupInput.checked = selected === itemInputs.length;
+      groupInput.indeterminate = selected > 0 && selected < itemInputs.length;
+      $('addDataApply').disabled = !list.querySelector('input[data-kind]:checked');
+    };
+    groupInput.onchange = () => {
+      itemInputs.forEach(input => { input.checked = groupInput.checked; });
+      updateGroup();
+    };
+    itemInputs.forEach(input => input.onchange = updateGroup);
+    list.appendChild(fieldset);
+  });
+}
+function closeAddDataPanel() {
+  $('addDataPanel').hidden = true;
+  $('legend').hidden = false;
+  syncAddDataButton();
+}
+function applySelectedThemeData() {
+  if (!activeThemeName) return;
+  const selected = [...$('addDataList').querySelectorAll('input[data-kind]:checked')];
+  if (!selected.length) return;
+  const additions = themeAdditions.get(activeThemeName) || { layers: new Set(), overlays: new Set() };
+  selected.forEach(input => {
+    const { kind, id } = input.dataset;
+    if (kind === 'layer') {
+      additions.layers.add(id);
+      if (themeLayers && !themeLayers.includes(id)) themeLayers.push(id);
+      const control = ctl.data[id];
+      if (control) {
+        control.theme(true);
+        control.el.hidden = false;
+        control.set(true);
+      }
+    } else if (kind === 'overlay') {
+      additions.overlays.add(id);
+      if (!themeOverlays.includes(id)) themeOverlays.push(id);
+      const control = ctl.ov[id];
+      if (control) {
+        control.theme(true);
+        control.el.hidden = false;
+        setVis([id], true);
+      }
+    }
+  });
+  themeAdditions.set(activeThemeName, additions);
+  saveThemeAdditions();
+  document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(group => {
+    group.hidden = ![...group.querySelectorAll('.lgbody > *')].some(item => !item.hidden);
+  });
+  populateSearchLayers();
+  updateArcgisLegendInView();
+  closeAddDataPanel();
+}
+function openAddDataPanel() {
+  const wasLayersOpen = tool === 'legend';
+  if (!wasLayersOpen) openTool('legend');
+  if (wasLayersOpen && !$('addDataPanel').hidden) {
+    closeAddDataPanel();
+    return;
+  }
+  $('legend').hidden = true;
+  $('addDataPanel').hidden = false;
+  renderAddDataPicker();
+  syncAddDataButton();
+}
+$('addDataBtn').onclick = openAddDataPanel;
+$('addDataClose').onclick = closeAddDataPanel;
+$('addDataApply').onclick = applySelectedThemeData;
 async function activateJsonTheme(theme) {
   const config = await loadJsonThemeConfig(theme);
   const themeId = theme.jsonTheme;
@@ -1776,6 +1999,9 @@ function buildLegend() {
       });
       const gl = document.createElement('div');
       gl.dataset.sl = sl;
+      gl.dataset.orderKey = `layer:${sl}`;
+      gl.draggable = true;
+      gl.title = `Drag to reorder ${sl.replace(/_/g, ' ')}`;
       const gchk = document.createElement('label');
       gchk.className = 'grp lname';
       gchk.innerHTML = `<input type="checkbox"${initialOn ? ' checked' : ''}> <span>${esc(sl.replace(/_/g, ' '))}</span><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/></svg>`;
@@ -2486,6 +2712,9 @@ function buildOverlayLegend() {
       }
       const transp = 100 - Math.round((w.opacity ?? 1) * 100);
       const d = document.createElement('div');
+      d.dataset.orderKey = `overlay:${w.id}`;
+      d.draggable = true;
+      d.title = `Drag to reorder ${w.name || w.id}`;
       d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${w.visible === true ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
       const cb = d.querySelector('input');
       cb.onchange = () => {
@@ -2526,6 +2755,9 @@ function buildBasemapLegend() {
   const group = addGroup($('legend'), 'Basemaps');
   entries.forEach(w => {
     const d = document.createElement('div');
+    d.dataset.orderKey = `basemap:${w.id}`;
+    d.draggable = true;
+    d.title = `Drag to reorder ${w.name || w.id}`;
     const visible = w.visible === true;
     d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${visible ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
     const cb = d.querySelector('input');
@@ -2569,6 +2801,7 @@ map.on('load', () => {
   buildLegend();
   buildOverlayLegend();
   buildBasemapLegend();
+  enableLegendReordering();
   setupThemes();
   updateArcgisLegendInView();
   loadScaleInfo().then(updateScaleState);

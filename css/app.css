@@ -129,9 +129,25 @@
   .themebar select, .json-link-filters select { width: 100%; min-height: 34px; padding: 8px 32px 8px 10px; border: 1px solid #8a949e; border-radius: 6px; font-weight: 600; cursor: pointer;
     appearance: none; -webkit-appearance: none;
     background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231f2a33' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1.500 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 11px center; }
+  #addDataPanel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  #addDataPanel[hidden] { display: none; }
+  .add-data-head, .add-data-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .add-data-head button { width: 30px; height: 30px; padding: 0; border: 0; background: transparent; font-size: 20px; }
+  #addDataList { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px; }
+  #addDataList fieldset { margin: 0; padding: 6px 0; border: 0; border-bottom: 1px solid var(--line); }
+  #addDataList legend { width: 100%; padding: 2px 0; font-weight: 600; }
+  #addDataList label { display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 2px 0; cursor: pointer; }
+  #addDataList input { flex: none; }
+  .add-data-actions { justify-content: flex-end; border-top: 1px solid var(--line); border-bottom: 0; }
   .lgroup { margin-bottom: 10px; }
   .lghead { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin: 0; padding: 0 3px 0 0; background: var(--rail-bg); color: #fff; font-size: 13px; font-weight: 600; border-radius: 5px; user-select: none; }
   .lghead:hover { background: #2b3a46; }
+  #legend .lghead, #legend .lgcollapse, #legend .lgbody > [draggable="true"] { cursor: grab; }
+  #legend .lghead:active, #legend .lgcollapse:active, #legend .lgbody > [draggable="true"]:active { cursor: grabbing; }
+  #legend .lgbody > [draggable="true"] { cursor: grab; }
+  #legend .dragging { opacity: .45; }
+  #legend .drop-before { border-top: 2px solid var(--sec); }
+  #legend .drop-after { border-bottom: 2px solid var(--sec); }
   .lgcollapse { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1; min-width: 0; padding: 7px 10px; border: 0; background: none; color: inherit; text-align: left; font-weight: inherit; }
   .lgcollapse:hover { background: transparent; }
   .lgcollapse span { min-width: 0; overflow-wrap: anywhere; }

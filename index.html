@@ -14,6 +14,8 @@
   <nav id="rail" aria-label="Map tools">
     <button data-tool="legend" title="Legend and layers" aria-label="Legend and layers">
       <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 16 9 5 9-5"/></svg></button>
+    <button id="addDataBtn" title="Add data to the current theme" aria-label="Add data to the current theme" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="tableBtn" title="Results table on/off" aria-label="Results table" aria-pressed="false">
       <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 10h18M3 14.500h18M9 10v9"/></svg></button>
     <button data-tool="search" title="Search" aria-label="Search">
@@ -34,6 +36,11 @@
     <section id="legendPage" class="dpage">
       <div class="dhead"><span>Legend</span><button class="dclose" aria-label="Close">&times;</button></div>
       <div class="themebar" id="themeBar" hidden><select id="themeSel" aria-label="Theme"></select></div>
+      <section id="addDataPanel" hidden aria-label="Add data to theme">
+        <div class="add-data-head"><strong>Available data</strong><button id="addDataClose" type="button" aria-label="Close add data">&times;</button></div>
+        <div id="addDataList"></div>
+        <div class="add-data-actions"><button id="addDataApply" class="primary" type="button" disabled>Add selected</button></div>
+      </section>
       <div class="dbody" id="legend"></div>
     </section>
     <section id="searchPage" class="dpage">

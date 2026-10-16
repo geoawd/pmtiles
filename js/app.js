@@ -677,10 +677,20 @@ function removeManualGroupAdditions(group) {
   if (!activeThemeName || activeThemeAll) return;
   const additions = themeAdditions.get(activeThemeName);
   if (!additions) return;
-  [...group.querySelector('.lgbody').children].forEach(item => {
+  const items = [...group.querySelector('.lgbody').children].filter(item => {
     const key = item.dataset.orderKey || '';
+    return key.startsWith('layer:') ? additions.layers.has(key.slice(6))
+      : key.startsWith('overlay:') && additions.overlays.has(key.slice(8));
+  });
+  if (!items.length) return;
+  const prompt = items.length === 1
+    ? 'Are you sure you want to remove this added layer?'
+    : 'Are you sure you want to remove these added layers?';
+  if (!window.confirm(prompt)) return;
+  items.forEach(item => {
+    const key = item.dataset.orderKey;
     if (key.startsWith('layer:')) additions.layers.delete(key.slice(6));
-    else if (key.startsWith('overlay:')) additions.overlays.delete(key.slice(8));
+    else additions.overlays.delete(key.slice(8));
   });
   themeLayers = [...new Set([...themeBaseLayers, ...additions.layers])];
   themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];

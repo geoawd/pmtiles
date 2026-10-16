@@ -528,22 +528,25 @@ function addGroup(parent, name) {
   sec.className = 'lgroup';
   sec.dataset.orderKey = `group:${name}`;
   sec.dataset.groupName = name;
-  sec.innerHTML = `<h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>${esc(name)}</span>` +
-    `<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>` +
+  sec.innerHTML = `<h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>${esc(name)}</span></button>` +
     `<button class="lremove" type="button" hidden title="Remove manually added layers from ${esc(name)}" aria-label="Remove manually added layers from ${esc(name)}">${ICON_MINUS}</button>` +
+    `<button class="lgexpand" type="button" aria-expanded="true" title="Collapse or expand ${esc(name)}" aria-label="Collapse or expand ${esc(name)}"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>` +
     `<button class="lgeye" type="button" aria-pressed="false" title="Hide ${esc(name)}" aria-label="Hide ${esc(name)}">${ICON_EYE}</button></h4>` +
     '<div class="lgbody"></div>';
   const group = { key: `legend-group-${++groupSequence}`, body: sec.querySelector('.lgbody'), layerIds: new Set(), onVisibilityChange: null };
   const collapse = sec.querySelector('.lgcollapse');
   const remove = sec.querySelector('.lremove');
+  const expand = sec.querySelector('.lgexpand');
   const eye = sec.querySelector('.lgeye');
   const head = sec.querySelector('.lghead');
   head.draggable = true;
   head.title = 'Drag to reorder group';
-  collapse.onclick = () => {
+  const toggleCollapsed = () => {
     const collapsed = sec.classList.toggle('collapsed');
-    collapse.setAttribute('aria-expanded', String(!collapsed));
+    [collapse, expand].forEach(button => button.setAttribute('aria-expanded', String(!collapsed)));
   };
+  collapse.onclick = toggleCollapsed;
+  expand.onclick = toggleCollapsed;
   let visible = true;
   group.setVisibility = on => {
     visible = on;

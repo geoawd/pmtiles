@@ -967,13 +967,25 @@ function renderAddDataPicker() {
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'add-data-group';
     const legend = document.createElement('legend');
+    legend.className = 'add-data-group-head';
+    const collapse = document.createElement('button');
+    collapse.type = 'button';
+    collapse.className = 'add-data-collapse';
+    collapse.setAttribute('aria-expanded', 'true');
+    collapse.setAttribute('aria-label', `Collapse ${name}`);
+    collapse.title = `Collapse ${name}`;
+    collapse.innerHTML = ICON_CHEV;
     const groupLabel = document.createElement('label');
     const groupInput = document.createElement('input');
     groupInput.type = 'checkbox';
     groupInput.dataset.groupCheck = 'true';
-    groupLabel.append(groupInput, document.createTextNode(name));
-    legend.appendChild(groupLabel);
+    const groupName = document.createElement('span');
+    groupName.textContent = name;
+    groupLabel.append(groupInput, groupName);
+    legend.append(collapse, groupLabel);
     fieldset.appendChild(legend);
+    const itemList = document.createElement('div');
+    itemList.className = 'add-data-items';
     const itemInputs = [];
     items.forEach(item => {
       const label = document.createElement('label');
@@ -984,9 +996,18 @@ function renderAddDataPicker() {
       const text = document.createElement('span');
       text.textContent = item.label;
       label.append(input, text);
-      fieldset.appendChild(label);
+      itemList.appendChild(label);
       itemInputs.push(input);
     });
+    fieldset.appendChild(itemList);
+    collapse.onclick = () => {
+      const expanded = collapse.getAttribute('aria-expanded') !== 'true';
+      collapse.setAttribute('aria-expanded', String(expanded));
+      collapse.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${name}`);
+      collapse.title = `${expanded ? 'Collapse' : 'Expand'} ${name}`;
+      fieldset.classList.toggle('collapsed', !expanded);
+      itemList.hidden = !expanded;
+    };
     const updateGroup = () => {
       const selected = itemInputs.filter(input => input.checked).length;
       groupInput.checked = selected === itemInputs.length;

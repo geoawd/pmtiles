@@ -140,6 +140,116 @@ function syncAddDataButton() {
 document.querySelectorAll('#rail [data-tool]').forEach(b => b.onclick = () => openTool(b.dataset.tool));
 document.querySelectorAll('.dclose').forEach(b => b.onclick = () => openTool(tool));
 
+const tourSteps = [...$('tourSteps').content.querySelectorAll('li')].map(item => ({
+  title: item.dataset.title,
+  target: item.dataset.target,
+  open: item.dataset.open,
+  description: item.textContent.trim().replace(/\s+/g, ' ')
+}));
+let tourPopover = null;
+let tourTarget = null;
+let tourIndex = 0;
+function positionTourPopover() {
+  if (!tourPopover) return;
+  const rect = tourTarget?.getBoundingClientRect();
+  const popover = tourPopover.getBoundingClientRect();
+  const margin = 12, gap = 12;
+  let left = rect ? rect.right + gap : (innerWidth - popover.width) / 2;
+  if (left + popover.width > innerWidth - margin && rect) left = rect.left - popover.width - gap;
+  left = Math.max(margin, Math.min(left, innerWidth - popover.width - margin));
+  let top = rect ? rect.top : (innerHeight - popover.height) / 2;
+  if (top + popover.height > innerHeight - margin) top = innerHeight - popover.height - margin;
+  top = Math.max(margin, top);
+  tourPopover.style.left = `${left}px`;
+  tourPopover.style.top = `${top}px`;
+}
+function renderTourStep() {
+  if (!tourPopover) return;
+  tourTarget?.classList.remove('tour-target');
+  const step = tourSteps[tourIndex];
+  const candidate = [...document.querySelectorAll(step.target)].find(element => element.getClientRects().length);
+  if (step.open === 'transparency' && candidate) {
+    if (candidate.getAttribute('aria-expanded') !== 'true') candidate.click();
+    const panel = candidate.closest('.grprow')?.parentElement.querySelector(':scope > .lpanel:not(.infopanel)');
+    const slider = panel?.querySelector('input[type="range"]');
+    tourTarget = slider?.getClientRects().length ? slider : candidate;
+  } else tourTarget = candidate || $('map');
+  tourTarget?.classList.add('tour-target');
+  tourTarget?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  tourPopover.querySelector('.tour-title').textContent = step.title;
+  tourPopover.querySelector('.tour-count').textContent = `${tourIndex + 1} of ${tourSteps.length}`;
+  tourPopover.querySelector('.tour-description').textContent = step.description;
+  const previous = tourPopover.querySelector('.tour-previous');
+  const next = tourPopover.querySelector('.tour-next');
+  previous.disabled = tourIndex === 0;
+  next.textContent = tourIndex === tourSteps.length - 1 ? 'Finish' : 'Next';
+  positionTourPopover();
+  setTimeout(positionTourPopover, 220);
+}
+function finishTour() {
+  if (!tourPopover) return;
+  const lastTarget = tourTarget;
+  tourTarget?.classList.remove('tour-target');
+  tourPopover.remove();
+  tourPopover = null;
+  tourTarget = null;
+  window.removeEventListener('resize', positionTourPopover);
+  document.removeEventListener('scroll', positionTourPopover, true);
+  document.removeEventListener('keydown', handleTourKeydown);
+  const focusTarget = lastTarget?.matches('button, input, select') ? lastTarget : $('#rail [data-tool="legend"]');
+  focusTarget?.focus();
+}
+function handleTourKeydown(event) {
+  if (event.key === 'Escape') { event.preventDefault(); finishTour(); }
+}
+function startTour() {
+  openTool('legend');
+  tourIndex = 0;
+  const panel = document.createElement('section');
+  panel.id = 'tourPopover';
+  panel.className = 'tour-popover';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-labelledby', 'tourTitle');
+  panel.setAttribute('aria-describedby', 'tourDescription');
+  const header = document.createElement('header');
+  const title = document.createElement('strong');
+  title.id = 'tourTitle';
+  title.className = 'tour-title';
+  const count = document.createElement('span');
+  count.className = 'tour-count';
+  header.append(title, count);
+  const description = document.createElement('p');
+  description.id = 'tourDescription';
+  description.className = 'tour-description';
+  const footer = document.createElement('footer');
+  const previous = document.createElement('button');
+  previous.type = 'button';
+  previous.className = 'tour-previous';
+  previous.textContent = 'Previous';
+  previous.onclick = () => { if (tourIndex > 0) { tourIndex--; renderTourStep(); } };
+  const end = document.createElement('button');
+  end.type = 'button';
+  end.textContent = 'End tour';
+  end.onclick = finishTour;
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'primary tour-next';
+  next.onclick = () => {
+    if (tourIndex === tourSteps.length - 1) finishTour();
+    else { tourIndex++; renderTourStep(); }
+  };
+  footer.append(previous, end, next);
+  panel.append(header, description, footer);
+  document.body.appendChild(panel);
+  tourPopover = panel;
+  window.addEventListener('resize', positionTourPopover);
+  document.addEventListener('scroll', positionTourPopover, true);
+  document.addEventListener('keydown', handleTourKeydown);
+  renderTourStep();
+  next.focus();
+}
+$('startTour').onclick = startTour;
+
 // ---------- Query helpers ----------
 function dataLayers() {
   const geojson = (CONFIG.overlays || []).filter(w => w.geojson).flatMap(w => w.layerIds || [w.id]).filter(id => map.getLayer(id));

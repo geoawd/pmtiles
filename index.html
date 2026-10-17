@@ -58,13 +58,24 @@
       <div class="dbody">
         <!-- Edit the headings and text below. Add more sections by copying a <section class="lgroup"> block. -->
         <section class="lgroup">
-          <h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>Help</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></h4>
+          <h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>Tour</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></h4>
           <div class="lgbody info-copy">
-            <p>Use the Legend to switch layers on and off and adjust their transparency.</p>
-            <p>Use Search to find features in the current map view e.g. searching in an attribute table.</p>
-            <p>Use the box tool to select features by dragging a rectangle on the map.</p>
+            <p>Take a quick, guided look at the map controls.</p>
+            <button id="startTour" class="primary" type="button">Start tour / What's new</button>
           </div>
         </section>
+        <!-- Edit tour titles and descriptions here; data-target points to each interface control. -->
+        <template id="tourSteps">
+          <ol>
+            <li data-title="Themes" data-target="#themeSel">Choose a theme to switch the map to a different subject or collection. The legend updates to show its available layers.</li>
+            <li data-title="Legend and layers" data-target="#legend">Expand a group to see its layers. Use checkboxes to show or hide layers; group controls can collapse, hide, or expand a whole group.</li>
+            <li data-title="Add and remove data" data-target="#addDataBtn">Use the + button to add data to the current theme. Select items and choose Add selected. Remove your additions with the trash button beside a group heading.</li>
+            <li data-title="Transparency" data-target="#legend .tbtn[aria-label^=&quot;Transparency&quot;]" data-open="transparency">Open the sliders button beside a layer, then drag Transparency to blend it with the map. Higher transparency values make the layer more see-through.</li>
+            <li data-title="Select by box" data-target="#boxBtn">Choose Select by box, then drag a rectangle on the map to select features. Press Esc to cancel.</li>
+            <li data-title="Navigate the map" data-target="#map .maplibregl-ctrl-top-right">Drag to pan; scroll or pinch to zoom. Use the map controls to zoom, rotate, reset north, or fit the configured extent.</li>
+            <li data-title="Terrain and hillshade" data-target="#terrainBtn">Use 3D terrain to tilt the map. In the Terrain group, choose a model and exaggeration; open hillshade settings to adjust lighting and colors. These controls depend on terrain being configured.</li>
+          </ol>
+        </template>
         <section class="lgroup">
           <h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>About</span><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button></h4>
           <div class="lgbody info-copy">

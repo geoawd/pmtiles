@@ -245,7 +245,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
 ///////////////////////////////////////////////////////////////////////////
 
     themes: [
-    { name: 'Boreholes', 
+    { name: 'Site Investigations', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
       overlays: ['esri_world_imagery', 'converted_cog', 'lot1_ortho_ni'] },
     { name: 'Geology', 

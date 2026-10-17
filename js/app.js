@@ -35,6 +35,15 @@ if (boundsValid) map.addControl({
 }, 'top-right');
 map.addControl(new maplibregl.ScaleControl());
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
+map.addControl({
+  onAdd() {
+    const container = document.createElement('div');
+    container.className = 'maplibregl-ctrl map-copy-link-control';
+    container.appendChild($('jsonCopyBtn'));
+    return container;
+  },
+  onRemove() { $('jsonCopyBtn').remove(); }
+}, 'top-right');
 new ResizeObserver(() => map.resize()).observe($('mapwrap'));   // keeps the map right when menu / results change
 const panelSplitter = $('panelSplitter');
 const resultsPanel = $('panel');

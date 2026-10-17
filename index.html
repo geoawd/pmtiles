@@ -104,6 +104,9 @@
 <div id="main">
   <div id="mapwrap">
     <div id="map"></div>
+    <button id="jsonCopyBtn" class="json-action" type="button" aria-label="Copy a link to this page with filters applied" title="Copy a link to this page with filters applied" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21.07l1.71-1.71M8 12h8"/></svg>
+    </button>
     <div id="geo" role="search">
       <div class="geobox">
         <input id="geoIn" type="search" placeholder="Place or grid ref, e.g. J 3374 7396" aria-label="Search for a place or Irish grid reference" autocomplete="off">
@@ -123,7 +126,6 @@
         <button id="csvBtn">Export CSV</button>
         <button id="xlsxBtn" hidden>Export filtered Boreholes to XLSX</button>
         <button id="jsonExcelBtn" class="json-action" aria-label="Export Excel" hidden>Export filtered results to XLSX</button>
-        <button id="jsonCopyBtn" class="json-action" aria-label="Copy filtered map link" hidden>Copy a link to this page with filters applied</button>
         <button id="jsonClearBtn" class="json-action" aria-label="Clear filters" hidden>Clear filters</button>
         <button id="closeBtn">Close</button>
       </div>

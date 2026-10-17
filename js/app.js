@@ -511,7 +511,7 @@ function setTransparency(sl, pct) {
   }));
 }
 const ICON_CHEV = '<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>';
-const ICON_MINUS = '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m3 0-.9 14H5.9L5 6m4 4v6m6-6v6"/></svg>';
 function collapser(target, startCollapsed) {   // chevron that collapses a layer's classes / panel
   const b = document.createElement('button');
   b.className = 'cbtn'; b.innerHTML = ICON_CHEV; b.title = 'Collapse or expand';
@@ -529,7 +529,7 @@ function addGroup(parent, name) {
   sec.dataset.orderKey = `group:${name}`;
   sec.dataset.groupName = name;
   sec.innerHTML = `<h4 class="lghead"><button class="lgcollapse" type="button" aria-expanded="true"><span>${esc(name)}</span></button>` +
-    `<button class="lremove" type="button" hidden title="Remove manually added layers from ${esc(name)}" aria-label="Remove manually added layers from ${esc(name)}">${ICON_MINUS}</button>` +
+    `<button class="lremove" type="button" hidden title="Remove manually added layers from ${esc(name)}" aria-label="Remove manually added layers from ${esc(name)}">${ICON_TRASH}</button>` +
     `<button class="lgexpand" type="button" aria-expanded="true" title="Collapse or expand ${esc(name)}" aria-label="Collapse or expand ${esc(name)}"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>` +
     `<button class="lgeye" type="button" aria-pressed="false" title="Hide ${esc(name)}" aria-label="Hide ${esc(name)}">${ICON_EYE}</button></h4>` +
     '<div class="lgbody"></div>';
@@ -687,33 +687,34 @@ function removeManualGroupAdditions(group) {
   });
   if (!items.length) return;
   const prompt = items.length === 1
-    ? 'Are you sure you want to remove this added layer?'
-    : 'Are you sure you want to remove these added layers?';
-  if (!window.confirm(prompt)) return;
-  items.forEach(item => {
-    const key = item.dataset.orderKey;
-    if (key.startsWith('layer:')) additions.layers.delete(key.slice(6));
-    else additions.overlays.delete(key.slice(8));
-  });
-  themeLayers = [...new Set([...themeBaseLayers, ...additions.layers])];
-  themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];
-  saveThemeAdditions();
-  Object.entries(ctl.data).forEach(([id, control]) => {
-    const inTheme = themeLayers.includes(id);
-    control.theme(inTheme);
-    control.el.hidden = !inTheme;
-  });
-  Object.entries(ctl.ov).forEach(([id, control]) => {
-    const inTheme = themeOverlays.includes(id);
-    control.theme(inTheme);
-    control.el.hidden = !inTheme;
-  });
-  document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(section => {
-    section.hidden = ![...section.querySelectorAll('.lgbody > *')].some(item => !item.hidden);
-  });
-  updateManualRemovalControls();
-  populateSearchLayers();
-  updateArcgisLegendInView();
+    ? 'Remove this added layer?'
+    : 'Remove these added layers?';
+  confirmToast(prompt, () => {
+    items.forEach(item => {
+      const key = item.dataset.orderKey;
+      if (key.startsWith('layer:')) additions.layers.delete(key.slice(6));
+      else additions.overlays.delete(key.slice(8));
+    });
+    themeLayers = [...new Set([...themeBaseLayers, ...additions.layers])];
+    themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];
+    saveThemeAdditions();
+    Object.entries(ctl.data).forEach(([id, control]) => {
+      const inTheme = themeLayers.includes(id);
+      control.theme(inTheme);
+      control.el.hidden = !inTheme;
+    });
+    Object.entries(ctl.ov).forEach(([id, control]) => {
+      const inTheme = themeOverlays.includes(id);
+      control.theme(inTheme);
+      control.el.hidden = !inTheme;
+    });
+    document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(section => {
+      section.hidden = ![...section.querySelectorAll('.lgbody > *')].some(item => !item.hidden);
+    });
+    updateManualRemovalControls();
+    populateSearchLayers();
+    updateArcgisLegendInView();
+  }, group.querySelector('.lremove'));
 }
 const jsonThemeStates = new Map();
 let activeJsonThemeId = null;
@@ -3176,10 +3177,50 @@ map.on('click', () => { geoList.hidden = true; });
 
 // ---------- 3D terrain ----------
 let toastTimer;
+function hideToast() {
+  const t = $('toast');
+  t.style.display = 'none';
+  t.classList.remove('toast-confirm');
+  t.replaceChildren();
+}
 function toast(msg) {
   const t = $('toast');
+  clearTimeout(toastTimer);
+  t.classList.remove('toast-confirm');
   t.textContent = msg; t.style.display = 'block';
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.style.display = 'none', 14000);
+  toastTimer = setTimeout(hideToast, 14000);
+}
+function confirmToast(msg, onConfirm, returnFocus) {
+  const t = $('toast');
+  clearTimeout(toastTimer);
+  const text = document.createElement('span');
+  text.textContent = msg;
+  const actions = document.createElement('span');
+  actions.className = 'toast-actions';
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.textContent = 'Remove';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'Cancel';
+  const finish = confirmed => {
+    clearTimeout(toastTimer);
+    hideToast();
+    if (confirmed) {
+      onConfirm();
+      const nextGroup = [...document.querySelectorAll('#legend .lgroup:not([hidden]) .lgcollapse')]
+        .find(button => button.offsetParent !== null);
+      (nextGroup || $('legend')).focus();
+    } else if (returnFocus?.isConnected && !returnFocus.hidden) returnFocus.focus();
+  };
+  remove.onclick = () => finish(true);
+  cancel.onclick = () => finish(false);
+  actions.append(remove, cancel);
+  t.replaceChildren(text, actions);
+  t.classList.add('toast-confirm');
+  t.style.display = 'flex';
+  remove.focus();
+  toastTimer = setTimeout(() => finish(false), 14000);
 }
 // Works out why the DTM would not load and says so on the map (details are also in the browser console)
 async function diagnoseDtm(model) {

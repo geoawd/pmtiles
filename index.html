@@ -69,11 +69,13 @@
           <ol>
             <li data-title="Themes" data-target="#themeSel">Choose a theme to switch the map to a different subject or collection. The legend updates to show its available layers.</li>
             <li data-title="Legend and layers" data-target="#legend">Expand a group to see its layers. Use checkboxes to show or hide layers; group controls can collapse, hide, or expand a whole group.</li>
+            <li data-title="Layer metadata" data-target="#legend .tbtn[aria-label=&quot;Layer information&quot;]">Select the information (i) button beside a layer to view its metadata and source link. Not every layer has metadata.</li>
             <li data-title="Add and remove data" data-target="#addDataBtn">Use the + button to add data to the current theme. Select items and choose Add selected. Remove your additions with the trash button beside a group heading.</li>
             <li data-title="Transparency" data-target="#legend .tbtn[aria-label^=&quot;Transparency&quot;]" data-open="transparency">Open the sliders button beside a layer, then drag Transparency to blend it with the map. Higher transparency values make the layer more see-through.</li>
             <li data-title="Select by box" data-target="#boxBtn">Choose Select by box, then drag a rectangle on the map to select features. Press Esc to cancel.</li>
             <li data-title="Navigate the map" data-target="#map .maplibregl-ctrl-top-right">Drag to pan; scroll or pinch to zoom. Use the map controls to zoom, rotate, reset north, or fit the configured extent.</li>
-            <li data-title="Terrain and hillshade" data-target="#terrainBtn">Use 3D terrain to tilt the map. In the Terrain group, choose a model and exaggeration; open hillshade settings to adjust lighting and colors. These controls depend on terrain being configured.</li>
+            <li data-title="Hillshade settings" data-target="#legend .hillshade-settings .hs-method" data-open="hillshade">In the Terrain group, open Hillshade settings to choose a shading method, set light direction and altitude, choose the illumination reference, and adjust shadow, highlight, and accent colors.</li>
+            <li data-title="3D terrain options" data-target="#legend .terrain-exaggeration" data-open="terrain">Open the 3D terrain options to choose among configured terrain models and adjust vertical exaggeration. Use the toolbar button to turn 3D terrain on or off.</li>
           </ol>
         </template>
         <section class="lgroup">

@@ -167,13 +167,27 @@ function renderTourStep() {
   if (!tourPopover) return;
   tourTarget?.classList.remove('tour-target');
   const step = tourSteps[tourIndex];
-  const candidate = [...document.querySelectorAll(step.target)].find(element => element.getClientRects().length);
+  const matches = [...document.querySelectorAll(step.target)];
+  let candidate = matches.find(element => element.getClientRects().length);
   if (step.open === 'transparency' && candidate) {
     if (candidate.getAttribute('aria-expanded') !== 'true') candidate.click();
     const panel = candidate.closest('.grprow')?.parentElement.querySelector(':scope > .lpanel:not(.infopanel)');
     const slider = panel?.querySelector('input[type="range"]');
     tourTarget = slider?.getClientRects().length ? slider : candidate;
+  } else if (step.open === 'hillshade') {
+    const method = matches[0];
+    const panel = method?.closest('.lpanel');
+    const trigger = panel?.parentElement?.querySelector('.grprow .tbtn[aria-label^="Transparency"]');
+    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
+    tourTarget = method?.getClientRects().length ? method : trigger;
+  } else if (step.open === 'terrain') {
+    const exaggeration = matches[0];
+    const panel = exaggeration?.closest('.terrain-panel');
+    const trigger = panel?.parentElement?.querySelector('.terrain-tools');
+    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
+    tourTarget = exaggeration?.getClientRects().length ? exaggeration : trigger;
   } else tourTarget = candidate || $('map');
+  if (!tourTarget?.getClientRects().length) tourTarget = $('map');
   tourTarget?.classList.add('tour-target');
   tourTarget?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
   tourPopover.querySelector('.tour-title').textContent = step.title;

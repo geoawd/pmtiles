@@ -68,7 +68,9 @@
         <template id="tourSteps">
           <ol>
             <li data-title="Themes" data-target="#themeSel">Choose a theme to switch the map to a different subject or collection. The legend updates to show its available layers.</li>
-            <li data-title="Legend and layers" data-target="#legend">Expand a group to see its layers. Use checkboxes to show or hide layers; group controls can collapse, hide, or expand a whole group.</li>
+            <li data-title="Legend and layers" data-target="#legend">Expand a group to see its layers. Use each layer's checkbox to show or hide it on the map.</li>
+            <li data-title="Reorder layers" data-target="#legend .lgbody [draggable=&quot;true&quot;]">Drag a layer row up or down to change its order in the legend. Drag a group heading to reorder a whole group.</li>
+            <li data-title="Group controls" data-target="#legend .lgexpand">Use the chevron to collapse or expand a group's layer list. The eye beside it toggles visibility for every layer in that group.</li>
             <li data-title="Layer metadata" data-target="#legend .tbtn[aria-label=&quot;Layer information&quot;]">Select the information (i) button beside a layer to view its metadata and source link. Not every layer has metadata.</li>
             <li data-title="Add and remove data" data-target="#addDataBtn">Use the + button to add data to the current theme. Select items and choose Add selected. Remove your additions with the trash button beside a group heading.</li>
             <li data-title="Transparency" data-target="#legend .tbtn[aria-label^=&quot;Transparency&quot;]" data-open="transparency">Open the sliders button beside a layer, then drag Transparency to blend it with the map. Higher transparency values make the layer more see-through.</li>

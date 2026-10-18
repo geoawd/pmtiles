@@ -141,25 +141,73 @@ layers: '6', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
 //  Geophysics Layers
 ///////////////////////////////////////////////////////////////////////////
 
-{ id: 'gsni_pseudogravity', name: 'Pseudogravity', group: 'Geophysics',
-url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
-layers: '4', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
-{ id: 'gsni_rtp', name: 'Reduced to pole', group: 'Geophysics',
-url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
-layers: '7', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
-{ id: 'gsni_residual', name: 'Residual', group: 'Geophysics',
+{ id: 'gsni_residual', name: 'Residual', group: 'Geophysics - Magnetics',
 url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
 layers: '3', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'gsni_pseudogravity', name: 'Pseudogravity', group: 'Geophysics - Magnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '4', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Pseudogravity - Tilt Derivative ', name: 'Pseudogravity - Tilt Derivative ', group: 'Geophysics - Magnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '5', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Analytic_Signal', name: 'Analytic_Signal', group: 'Geophysics - Magnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '6', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'gsni_rtp', name: 'Reduced to pole', group: 'Geophysics - Magnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '7', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Reduced_to_Pole - Tilt Derivative ', name: 'Reduced_to_Pole - Tilt Derivative', group: 'Geophysics - Magnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '8', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'RTP - Analytic_Signal ', name: 'RTP - Analytic_Signal', group: 'Geophysics - Magnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '9', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+
+
+{ id: 'High Frequency Apparent Conductivity', name: 'High Frequency Apparent Conductivity', group: 'Geophysics - Electromagnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '11', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Low Frequency Apparent Conductivity ', name: 'Low Frequency Apparent Conductivity', group: 'Geophysics - Electromagnetics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '12', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+
+
+{ id: 'Ratio eTh - K', name: 'Ratio eTh - K', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '14', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Ratio eU - eTh', name: 'Ratio eU - eTh', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '15', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Ratio eU - K', name: 'Ratio eU - K', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '16', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Ternary K - Th - U', name: 'Ternary K - Th - U', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '17', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Potassium', name: 'Potassium', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '18', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Thorium', name: 'Thorium', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '19', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+{ id: 'Total Count', name: 'Total Count', group: 'Geophysics - Radiometrics',
+url: 'https://map.bgs.ac.uk/arcgis/rest/services/GeoIndex_GSNI/GSNI_Geophysics/MapServer/',
+layers: '10', opacity: 0.6, visible: false, attribution: '&copy; GSNI' },
+
+
+///////////////////////////////////////////////////////////////////////////
+//  Imagery Layers
+///////////////////////////////////////////////////////////////////////////
+
  { id: 'lot1_ortho_ni', name: 'NI Coastal Orthophotography', group: 'Imagery',
 tiles: 'https://tiles-eu1.arcgis.com/kswen6BYexuc1SUk/arcgis/rest/services/Lot1_Ortho_NI/MapServer/tile/{z}/{y}/{x}?cacheKey=b4dc3f34e50f87a9',
 maxzoom: 23, opacity: 1, visible: false, attribution: '&copy; DAERA, Bluesky' },
+
 { id: 'esri_world_imagery', name: 'ESRI World Imagery', group: 'Imagery',
 tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 opacity: 0.6, visible: false,
 attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community' }
-
 ],
-
 ///////////////////////////////////////////////////////////////////////////
 //  Groups
 ///////////////////////////////////////////////////////////////////////////
@@ -253,7 +301,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     { name: 'Geology WMS', 
       overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10K_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
     { name: 'Geophysics', 
-      overlays: ['gsni_pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
+      overlays: ['Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
     { name: 'Hydrogeology', 
       overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer', 'esri_world_imagery'] },
     { name: 'Minerals', 

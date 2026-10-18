@@ -17,9 +17,7 @@ window.CONFIG = {
 ///////////////////////////////////////////////////////////////////////////
 
   datasets: [
-    { id: 'bores', name: 'Site Investigations', style: 'config/layers.json', pmtiles: 'data/layers.pmtiles' },
-  //  { id: 'Geology', name: 'Geology', style: 'config/geology.json', pmtiles: 'data/layers.pmtiles' },
-
+    { id: 'bores', name: 'Site Investigations', style: 'config/layers.json', pmtiles: 'data/layers.pmtiles' }
   ],
   styleUrl: 'config/style.json',
 
@@ -73,7 +71,7 @@ overlays: [
 //  Local COG raster
 ///////////////////////////////////////////////////////////////////////////
 
-{ id: 'converted_cog', name: 'Converted COG', group: 'COG Rasters', cog: 'data/converted.tif', tileSize: 256, opacity: 1, visible: true },
+// { id: 'converted_cog', name: 'Converted COG', group: 'COG Rasters', cog: 'data/converted.tif', tileSize: 256, opacity: 1, visible: true },
 
 ///////////////////////////////////////////////////////////////////////////
 //  10K Layers
@@ -180,13 +178,6 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
 ///////////////////////////////////////////////////////////////////////////
 
   dataLinks: {
-    Boreholes: {
-      field: 'OBJECTID',
-      links: [
-        { label: 'Samples', file: 'data/site-investigations/samples.json', dataKey: 'si_samples' },
-        { label: 'Strata', file: 'data/site-investigations/strata.json', dataKey: 'si_strata' }
-      ]
-    }
   },
 
 ///////////////////////////////////////////////////////////////////////////
@@ -248,31 +239,12 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     { name: 'Site Investigations', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
       overlays: ['esri_world_imagery', 'converted_cog', 'lot1_ortho_ni'] },
-    { name: 'Geology', 
-      layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
-    { name: 'Geology WMS', 
+     { name: 'Geology WMS', 
       overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10K_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
     { name: 'Geophysics', 
       overlays: ['gsni_pseudogravity', 'gsni_rtp', 'gsni_residual', 'esri_world_imagery'] },
     { name: 'Hydrogeology', 
       overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer', 'esri_world_imagery'] },
-    { name: 'Minerals', 
-      groups: ['Geology WMS'], 
-      overlays: ['esri_world_imagery'] },
-    { name: 'Geomaterials', 
-      jsonTheme: 'geomaterials', 
-      jsonConfig: 'config/config_geomaterials.js',
-      groups: ['Geology WMS'] },
-    { name: 'Test Deployment',
-      jsonTheme: 'test-deployment',
-      jsonConfig: 'config/config_test_deployment.js', 
-      groups: ['A Test Group']},
-    { name: 'Site Investigations',
-      jsonTheme: 'site-investigations',
-      jsonConfig: 'config/config_site_investigations.js',
-      datasets: ['bores'] },   // the geometry dataset must be on so its tiles load
-
-   // { name: 'All layers' }
   ],
 
 

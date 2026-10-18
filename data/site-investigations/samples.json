@@ -1,9 +1,0 @@
-{
-  "si_samples": [
-    { "OBJECTID": 18515, "SAMPLE_ID": "SI-0001", "DEPTH": 3.0, "SAMPLE_TYPE": "Disturbed", "LAB_STATUS": "Complete" },
-    { "OBJECTID": 18515, "SAMPLE_ID": "SI-0002", "DEPTH": 20.0, "SAMPLE_TYPE": "Core", "LAB_STATUS": "In progress" },
-    { "OBJECTID": 18516, "SAMPLE_ID": "SI-0003", "DEPTH": 10.0, "SAMPLE_TYPE": "Core", "LAB_STATUS": "Complete" },
-    { "OBJECTID": 18517, "SAMPLE_ID": "SI-0004", "DEPTH": 5.0, "SAMPLE_TYPE": "Undisturbed", "LAB_STATUS": "Complete" },
-    { "OBJECTID": 18509, "SAMPLE_ID": "SI-0005", "DEPTH": 2.0, "SAMPLE_TYPE": "Water", "LAB_STATUS": "Pending" }
-  ]
-}

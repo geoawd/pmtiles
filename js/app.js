@@ -2506,12 +2506,36 @@ function configuredTerrainModels() {
     const id = String(model.id || `model-${index + 1}`);
     if (ids.has(id)) { console.warn('Terrain model skipped: duplicate id', id); return; }
     ids.add(id);
-    models.push({ ...model, id, name: model.name || id, sourceId: `dtm-${models.length}` });
+    models.push({ ...model, id, name: model.name || id,
+      sourceId: `dtm-terrain-${models.length}`, hillshadeSourceId: `dtm-hillshade-${models.length}` });
   });
   return models;
 }
 const terrainModels = configuredTerrainModels();
 let activeTerrainModel = null, terrainLayerBeforeId = null;
+function addTerrainModelSource(model, kind) {
+  const sourceId = kind === 'hillshade' ? model.hillshadeSourceId : model.sourceId;
+  if (map.getSource(sourceId)) return;
+  const tc = CONFIG.terrain || {};
+  const source = {
+    type: 'raster-dem', url: 'cog://' + new URL(model.cog, location.href).href + '#dem',
+    tileSize: model.tileSize || 256, attribution: model.attribution || tc.attribution || ''
+  };
+  if (Number.isFinite(model.maxzoom)) source.maxzoom = model.maxzoom;
+  map.addSource(sourceId, source);
+}
+function addHillshadeLayer(model, beforeId, visible) {
+  if (CONFIG.terrain?.hillshade === false || map.getLayer('hillshade')) return;
+  addTerrainModelSource(model, 'hillshade');
+  const layer = {
+    id: 'hillshade', type: 'hillshade', source: model.hillshadeSourceId,
+    layout: { visibility: visible ? 'visible' : 'none' },
+    paint: hillshadePaint()
+  };
+  if (beforeId && map.getLayer(beforeId)) map.addLayer(layer, beforeId);
+  else map.addLayer(layer);
+  if (layerVisibility.has('hillshade')) syncLayerVisibility('hillshade');
+}
 const CONTOUR_SOURCE_ID = 'dtm-contour-source';
 const CONTOUR_LINE_ID = 'dtm-contour-lines';
 const CONTOUR_LABEL_ID = 'dtm-contour-labels';
@@ -2633,7 +2657,7 @@ function removeTerrainContours() {
 async function setupTerrainContours(model, beforeId = terrainLayerBeforeId) {
   const generation = ++contourGeneration;
   removeTerrainContours();
-  if (contourSettings === false || !window.mlcontour || !window.MaplibreCOGProtocol || !map.getSource(model.sourceId)) return;
+  if (contourSettings === false || !window.mlcontour || !window.MaplibreCOGProtocol) return;
   try {
     const cogUrl = new URL(model.cog, location.href).href;
     const metadata = await window.MaplibreCOGProtocol.getCogMetadata(cogUrl);
@@ -2957,6 +2981,7 @@ function buildOverlayLegend() {
       const setOverlayVisibility = on => {
         cb.checked = on;
         if (w.contours) contoursVisible = cb.checked;
+        if (w.hillshade && on) addHillshadeLayer(activeTerrainModel, terrainLayerBeforeId, false);
         setVis(layerIds, on);
       };
       cb.onchange = () => setOverlayVisibility(cb.checked);
@@ -3020,19 +3045,8 @@ map.on('load', () => {
   terrainLayerBeforeId = firstData && firstData.id;
   if (tc && terrainModels.length && window.MaplibreCOGProtocol) {
     activeTerrainModel = terrainModels.find(m => m.id === tc.defaultModel) || terrainModels[0];
-    terrainModels.forEach(model => {
-      const source = {
-        type: 'raster-dem', url: 'cog://' + new URL(model.cog, location.href).href + '#dem',
-        tileSize: model.tileSize || 256, attribution: model.attribution || tc.attribution || ''
-      };
-      if (Number.isFinite(model.maxzoom)) source.maxzoom = model.maxzoom;
-      map.addSource(model.sourceId, source);
-    });
-    if (tc.hillshade !== false) map.addLayer({
-      id: 'hillshade', type: 'hillshade', source: activeTerrainModel.sourceId,
-      layout: { visibility: tc.hillshadeVisible ? 'visible' : 'none' },
-      paint: hillshadePaint()
-    }, firstData && firstData.id);
+    if (tc.hillshade !== false && tc.hillshadeVisible)
+      addHillshadeLayer(activeTerrainModel, firstData && firstData.id, true);
     if (tc.hillshade !== false) registerLayerVisibility('hillshade', tc.hillshadeVisible === true);
     setupTerrainContours(activeTerrainModel, firstData && firstData.id);
   } else $('terrainBtn').style.display = 'none';   // no DTM configured
@@ -3392,8 +3406,9 @@ async function diagnoseDtm(model) {
 let dtmChecking = false;
 map.on('error', async e => {
   const msg = (e.error && e.error.message) || '';
-  const model = terrainModels.find(m => m.sourceId === e.sourceId) || activeTerrainModel;
-  if (!model || (!terrainModels.some(m => m.sourceId === e.sourceId) && !(e.sourceId === undefined && /cog|tiff|geotiff/i.test(msg)))) {
+  const isTerrainSource = m => m.sourceId === e.sourceId || m.hillshadeSourceId === e.sourceId;
+  const model = terrainModels.find(isTerrainSource) || activeTerrainModel;
+  if (!model || (!terrainModels.some(isTerrainSource) && !(e.sourceId === undefined && /cog|tiff|geotiff/i.test(msg)))) {
     const overlay = (CONFIG.overlays || []).find(w => w.id === e.sourceId);
     if (overlay) console.error(`Overlay "${overlay.name || overlay.id}" error:`, e.error);
     return;
@@ -3416,21 +3431,17 @@ function setTerrainModel(id) {
   const tc = CONFIG.terrain;
   if (map.getLayer(CONTOUR_LINE_ID)) contoursVisible = map.getLayoutProperty(CONTOUR_LINE_ID, 'visibility') !== 'none';
   removeTerrainContours();
-  const hillshadeVisible = map.getLayer('hillshade')
+  const hillshadeLayerExists = !!map.getLayer('hillshade');
+  const hillshadeVisible = hillshadeLayerExists
     ? map.getLayoutProperty('hillshade', 'visibility') !== 'none'
     : !!tc.hillshadeVisible;
-  if (map.getLayer('hillshade')) map.removeLayer('hillshade');
+  if (hillshadeLayerExists) map.removeLayer('hillshade');
   activeTerrainModel = model;
-  if (terrainOn) map.setTerrain({ source: model.sourceId, exaggeration: terrainExaggeration });
-  if (tc.hillshade !== false && map.getSource(model.sourceId)) {
-    const layer = {
-      id: 'hillshade', type: 'hillshade', source: model.sourceId,
-      layout: { visibility: hillshadeVisible ? 'visible' : 'none' },
-      paint: hillshadePaint()
-    };
-    if (terrainLayerBeforeId && map.getLayer(terrainLayerBeforeId)) map.addLayer(layer, terrainLayerBeforeId);
-    else map.addLayer(layer);
+  if (terrainOn) {
+    addTerrainModelSource(model, 'terrain');
+    map.setTerrain({ source: model.sourceId, exaggeration: terrainExaggeration });
   }
+  if (hillshadeLayerExists || hillshadeVisible) addHillshadeLayer(model, terrainLayerBeforeId, hillshadeVisible);
   setupTerrainContours(model, terrainLayerBeforeId);
 }
 ///////////////////////////////////////////////////////////////////////////
@@ -3438,15 +3449,15 @@ function setTerrainModel(id) {
 ///////////////////////////////////////////////////////////////////////////
 function setTerrain3D(on, syncCheckbox = true, tilt = true) {
   const tc = CONFIG.terrain;
-  if (!tc || !activeTerrainModel || !map.getSource(activeTerrainModel.sourceId)) { if (terrainCb) terrainCb.checked = false; return toast('3D view needs a DTM configured in CONFIG.terrain.models.'); }
+  if (!tc || !activeTerrainModel) { if (terrainCb) terrainCb.checked = false; return toast('3D view needs a DTM configured in CONFIG.terrain.models.'); }
   terrainOn = on;
   if (terrainCb && syncCheckbox) terrainCb.checked = on;
   $('terrainBtn').classList.toggle('active', on);
-  if (on) { map.setTerrain({ source: activeTerrainModel.sourceId, exaggeration: terrainExaggeration }); if (tilt) map.easeTo({ pitch: tc.pitch ?? 60, duration: 900 }); }
+  if (on) { addTerrainModelSource(activeTerrainModel, 'terrain'); map.setTerrain({ source: activeTerrainModel.sourceId, exaggeration: terrainExaggeration }); if (tilt) map.easeTo({ pitch: tc.pitch ?? 60, duration: 900 }); }
   else { map.setTerrain(null); map.easeTo({ pitch: 0, bearing: 0, duration: 600 }); }   // everything is draped on the surface automatically
 }
 map.on('pitchstart', e => {   // user tilting (right-drag / two-finger swipe) switches 3D on
-  if (e.originalEvent && !terrainOn && !terrainGroupHidden && activeTerrainModel && map.getSource(activeTerrainModel.sourceId)) setTerrain3D(true, true, false);
+  if (e.originalEvent && !terrainOn && !terrainGroupHidden && activeTerrainModel) setTerrain3D(true, true, false);
 });
 map.on('moveend', () => {
   if (terrainOn && map.getPitch() < 1) setTerrain3D(false);

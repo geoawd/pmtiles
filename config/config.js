@@ -307,9 +307,6 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
   terrain: {
     models: [
       { id: '10m', name: 'Open 10m DEM', cog: 'https://data.better-open-data.com/lidar_zstd/DTM.tif', tileSize: 512 },
-      { id: 'local', name: 'Linford 20CM DEM', cog: 'https://data.better-open-data.com/lidar_zstd/Linford_DTM_3857.tif', tileSize: 256, maxzoom: 20 },
-      { id: 'ig_linford', name: 'Linford Irish Grid', cog: 'https://data.better-open-data.com/lidar_zstd/Linford_DTM.tif', tileSize: 256, maxzoom: 20 },
-      { id: 'ig_linford_dsm', name: 'Linford Irish Grid', cog: 'https://data.better-open-data.com/lidar_zstd/Linford_DSM.tif', tileSize: 256, maxzoom: 20 },
       { id: 'Ardquin_DSM', name: 'Ardquin_DSM', cog: 'https://data.better-open-data.com/lidar_zstd/Ardquin_DSM.tif', tileSize: 256, maxzoom: 20 },
       { id: 'Ardquin_DTM', name: 'Ardquin_DTM', cog: 'https://data.better-open-data.com/lidar_zstd/Ardquin_DTM.tif', tileSize: 256, maxzoom: 20 },
       { id: 'Ardstraw_02_02_2012_DSM', name: 'Ardstraw_02_02_2012_DSM', cog: 'https://data.better-open-data.com/lidar_zstd/Ardstraw_02_02_2012_DSM.tif', tileSize: 256, maxzoom: 20 },

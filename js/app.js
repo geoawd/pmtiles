@@ -902,12 +902,23 @@ function setupThemes() {
     activeThemeAll = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
     const additions = themeAdditions.get(t.name) || { layers: new Set(), overlays: new Set() };
     const groupMembers = (t.groups || []).map(name => resolveThemeGroup(name));
+    const overlayConfigs = validOverlays();
+    const overlayGroupNames = new Set(overlayConfigs.map(overlay => overlay.group).filter(Boolean));
+    const overlayGroups = [...new Set([...(t.groups || []), ...(t.overlays || [])])]
+      .filter(name => overlayGroupNames.has(name))
+      .map(name => ({
+        ids: overlayConfigs.filter(overlay => overlay.group === name).map(overlay => overlay.id)
+      }));
+    const groupedOverlayIds = overlayGroups.flatMap(group => group.ids);
+    const directOverlayIds = (t.overlays || []).filter(id => overlayConfigs.some(overlay => overlay.id === id));
     const themeNames = [
       ...(t.layers || []),
       ...(t.datasets || []).flatMap(d => (window.DATASET_LAYERS || {})[d] || []),
       ...groupMembers.flatMap(group => group.layers)
     ];
-    themeBaseOverlays = [...new Set([...(t.overlays || []), ...groupMembers.flatMap(group => group.overlays)])];
+    themeBaseOverlays = [...new Set([
+      ...directOverlayIds, ...groupedOverlayIds, ...groupMembers.flatMap(group => group.overlays)
+    ])];
     themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];
     themeBaseLayers = [...new Set(themeNames)];
     themeLayers = activeThemeAll ? null : [...new Set([...themeBaseLayers, ...additions.layers])];
@@ -920,6 +931,7 @@ function setupThemes() {
       const inTheme = activeThemeAll || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
+    overlayGroups.forEach(group => group.ids.forEach((id, index) => ctl.ov[id]?.set(index === 0)));
     additions.layers.forEach(id => ctl.data[id]?.set(true));
     additions.overlays.forEach(id => ctl.ov[id]?.set(true));
     document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them

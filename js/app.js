@@ -1,4 +1,5 @@
 import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.mjs';
+import { COLORCET_RAMPS } from './colorcet-ramps.js';
 import { buildJsonFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, jsonGeometryCenter, jsonGeometryIntersectsBounds, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
 
 window.maplibregl = maplibregl;
@@ -774,6 +775,9 @@ function syncMapLayerOrder() {
     map.moveLayer(layers[index], beforeId);
     beforeId = layers[index];
   }
+  map.getStyle().layers
+    .filter(layer => layer.id.startsWith('json-'))
+    .forEach(layer => map.moveLayer(layer.id));
 }
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
 let themeBaseLayers = [];
@@ -2486,10 +2490,483 @@ function addGeojsonLayer(w, beforeId) {
     map.getSource(w.id).setData(data);
   }).catch(error => toast(`Could not load ${w.name || w.id}: ${error.message}`));
 }
+const COG_RAMP_COLORS = {
+  Spectrum: ['#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#d53e4f'],
+  Viridis: ['#440154', '#414487', '#2a788e', '#22a884', '#7ad151', '#fde725'],
+  Cividis: ['#00204c', '#414d6b', '#68777d', '#8c9986', '#b6b85c', '#fee838'],
+  Plasma: ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636', '#f0f921'],
+  Inferno: ['#000004', '#420a68', '#932667', '#dd513a', '#fbb61a', '#fcffa4'],
+  Magma: ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9f6d', '#fcfdbf'],
+  Spectral: ['#d53e4f', '#fc8d59', '#fee08b', '#e6f598', '#99d594', '#3288bd'],
+  ...COLORCET_RAMPS
+};
+const COG_DEFAULT_RAMP = 'CET rainbow4';
+const COG_QUANTILE_CLASS_COUNT = 64;
+const COG_RANGE_SAMPLE_SIZE = 256;
+const COG_HILLSHADE_DEFAULTS = {
+  direction: 315,
+  altitude: 45,
+  strength: 0.2,
+  shadowColor: '#000000',
+  highlightColor: '#ffffff',
+  accentColor: '#000000'
+};
+function cogValueLabel(value) {
+  return Number(value.toPrecision(7)).toString();
+}
+function cogSampleCoordinates(bbox) {
+  const [west, south, east, north] = bbox;
+  return Array.from({ length: COG_RANGE_SAMPLE_SIZE ** 2 }, (_, index) => {
+    const column = index % COG_RANGE_SAMPLE_SIZE;
+    const row = Math.floor(index / COG_RANGE_SAMPLE_SIZE);
+    return {
+      longitude: west + (column + 0.5) * (east - west) / COG_RANGE_SAMPLE_SIZE,
+      latitude: south + (row + 0.5) * (north - south) / COG_RANGE_SAMPLE_SIZE
+    };
+  });
+}
+async function sampleCogValueRange(url, metadata) {
+  if (!Array.isArray(metadata.bbox) || metadata.bbox.length !== 4 || !metadata.bbox.every(Number.isFinite)) {
+    throw new Error('The COG does not provide a geographic bounding box.');
+  }
+  const zooms = (metadata.images || []).filter(image => !image.isMask)
+    .map(image => Math.round(image.zoom)).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!zooms.length) throw new Error('The COG does not provide a readable raster overview.');
+
+  const coordinates = cogSampleCoordinates(metadata.bbox);
+  for (const zoom of zooms) {
+    const values = [];
+    for (let start = 0; start < coordinates.length; start += 32) {
+      const batch = await Promise.all(coordinates.slice(start, start + 32).map(point =>
+        window.MaplibreCOGProtocol.locationValues(url, point, zoom)));
+      values.push(...batch.flat().filter(Number.isFinite));
+    }
+    if (values.length) {
+      const { min, max } = values.reduce((range, value) => ({
+        min: Math.min(range.min, value),
+        max: Math.max(range.max, value)
+      }), { min: Infinity, max: -Infinity });
+      if (min < max) return { min, max, values };
+    }
+  }
+  throw new Error('Could not find a varying, valid raster value in the COG.');
+}
+function cogQuantileBounds(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const bounds = [sorted[0]];
+  for (let index = 1; index < COG_QUANTILE_CLASS_COUNT; index++) {
+    const sampleIndex = Math.ceil(index * sorted.length / COG_QUANTILE_CLASS_COUNT);
+    const lower = sorted[sampleIndex - 1];
+    const upper = sorted[Math.min(sampleIndex, sorted.length - 1)];
+    const boundary = lower + (upper - lower) / 2;
+    if (boundary > bounds[bounds.length - 1] && boundary < sorted[sorted.length - 1]) {
+      bounds.push(boundary);
+    }
+  }
+  bounds.push(sorted[sorted.length - 1]);
+  return bounds;
+}
+function cogRampColorAt(colors, fraction) {
+  const colorPosition = fraction * (colors.length - 1);
+  const colorIndex = Math.min(Math.floor(colorPosition), colors.length - 2);
+  const blend = colorPosition - colorIndex;
+  const start = colors[colorIndex].slice(1).match(/.{2}/g).map(value => parseInt(value, 16));
+  const end = colors[colorIndex + 1].slice(1).match(/.{2}/g).map(value => parseInt(value, 16));
+  return `#${start.map((value, index) =>
+    Math.round(value + (end[index] - value) * blend).toString(16).padStart(2, '0')).join('')}`;
+}
+function cogQuantileFraction(value, bounds) {
+  let low = 0;
+  let high = bounds.length - 1;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (value < bounds[middle]) high = middle;
+    else low = middle;
+  }
+  const lower = bounds[low], upper = bounds[low + 1];
+  const withinClass = upper > lower ? (value - lower) / (upper - lower) : 0;
+  return (low + Math.max(0, Math.min(1, withinClass))) / (bounds.length - 1);
+}
+function cogQuantileRampColors(colors, bounds) {
+  return Array.from({ length: COG_QUANTILE_CLASS_COUNT }, (_, index) => {
+    const value = bounds[0] + (bounds[bounds.length - 1] - bounds[0]) *
+      index / (COG_QUANTILE_CLASS_COUNT - 1);
+    return cogRampColorAt(colors, cogQuantileFraction(value, bounds));
+  });
+}
+function effectiveCogHillshadeStrength(state) {
+  return state.hillshadeStrength * state.opacity;
+}
+function setCogDerivedLayerSelected(w, id, selected) {
+  const layerState = layerVisibility.get(id);
+  const baseState = layerVisibility.get(w.id);
+  if (!layerState) {
+    layerVisibility.set(id, {
+      selected,
+      inTheme: baseState?.inTheme ?? true,
+      groups: new Set(baseState?.groups || [])
+    });
+  } else layerState.selected = selected;
+  syncLayerVisibility(id);
+}
+function syncCogLayerMode(w) {
+  const state = w.cogState;
+  if (!state) return;
+  const enabled = state.visible;
+  const rampActive = !!state.ramp;
+  setCogDerivedLayerSelected(w, w.id, enabled && !rampActive);
+  state.colorLayerIds.forEach(id => setCogDerivedLayerSelected(w, id, enabled && rampActive));
+  if (state.hillshadeCreated) {
+    setCogDerivedLayerSelected(w, state.hillshadeLayerId, enabled && state.hillshadeEnabled);
+  }
+}
+function removeCogColorLayers(w) {
+  const state = w.cogState;
+  state.colorLayerIds.forEach(id => {
+    if (map.getLayer(id)) map.removeLayer(id);
+    const sourceId = `${id}-source`;
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+    layerVisibility.delete(id);
+    w.groupLayerIds?.delete(id);
+    const layerIndex = w.layerIds.indexOf(id);
+    if (layerIndex >= 0) w.layerIds.splice(layerIndex, 1);
+  });
+  state.colorLayerIds = [];
+}
+function addCogColorLayers(w) {
+  const state = w.cogState;
+  const colors = state.mode === 'quantile'
+    ? cogQuantileRampColors(COG_RAMP_COLORS[state.ramp], state.quantileBounds)
+    : COG_RAMP_COLORS[state.ramp];
+  const addLayer = (sourceUrl, index) => {
+    const id = `${w.id}__cog_color_${index}`;
+    const sourceId = `${id}-source`;
+    state.colorLayerIds.push(id);
+    const hillshadeIndex = w.layerIds.indexOf(state.hillshadeLayerId);
+    w.layerIds.splice(hillshadeIndex < 0 ? w.layerIds.length : hillshadeIndex, 0, id);
+    w.groupLayerIds?.add(id);
+    map.addSource(sourceId, {
+      type: 'raster',
+      url: sourceUrl,
+      tileSize: w.tileSize || 256,
+      ...(Number.isFinite(w.maxzoom) ? { maxzoom: w.maxzoom } : {})
+    });
+    map.addLayer({
+      id,
+      type: 'raster',
+      source: sourceId,
+      layout: { visibility: 'none' },
+      paint: { 'raster-opacity': state.opacity }
+    });
+    setCogDerivedLayerSelected(w, id, state.visible);
+  };
+  const sourceUrl = `cog://${state.url}#color=${JSON.stringify(colors)},${cogValueLabel(state.rangeMin)},${cogValueLabel(state.rangeMax)},c`;
+  addLayer(sourceUrl, 0);
+}
+function updateCogColorLayers(w) {
+  const state = w.cogState;
+  removeCogColorLayers(w);
+  if (!state.ramp) {
+    syncCogLayerMode(w);
+    syncMapLayerOrder();
+    return;
+  }
+  try {
+    addCogColorLayers(w);
+    syncCogLayerMode(w);
+    syncMapLayerOrder();
+  } catch (error) {
+    removeCogColorLayers(w);
+    state.ramp = '';
+    syncCogLayerMode(w);
+    throw error;
+  }
+}
+function createCogHillshade(w) {
+  const state = w.cogState;
+  if (state.hillshadeCreated) return;
+  map.addSource(state.hillshadeSourceId, {
+    type: 'raster-dem',
+    url: `cog://${state.url}#dem`,
+    tileSize: w.tileSize || 256,
+    ...(Number.isFinite(w.maxzoom) ? { maxzoom: w.maxzoom } : {})
+  });
+  map.addLayer({
+    id: state.hillshadeLayerId,
+    type: 'hillshade',
+    source: state.hillshadeSourceId,
+    layout: { visibility: 'none' },
+    paint: {
+      'hillshade-exaggeration': effectiveCogHillshadeStrength(state),
+      'hillshade-illumination-direction': COG_HILLSHADE_DEFAULTS.direction,
+      'hillshade-illumination-altitude': COG_HILLSHADE_DEFAULTS.altitude,
+      'hillshade-illumination-anchor': 'map',
+      'hillshade-shadow-color': COG_HILLSHADE_DEFAULTS.shadowColor,
+      'hillshade-highlight-color': COG_HILLSHADE_DEFAULTS.highlightColor,
+      'hillshade-accent-color': COG_HILLSHADE_DEFAULTS.accentColor
+    }
+  });
+  state.hillshadeCreated = true;
+  w.groupLayerIds?.add(state.hillshadeLayerId);
+  setCogDerivedLayerSelected(w, state.hillshadeLayerId, state.visible && state.hillshadeEnabled);
+  syncMapLayerOrder();
+}
+function renderCogRampLegend(w, legend) {
+  const state = w.cogState;
+  legend.replaceChildren();
+  legend.hidden = !state.ramp;
+  if (!state.ramp) return;
+  const title = document.createElement('div');
+  title.className = 'cog-ramp-legend-title';
+  title.textContent = state.ramp;
+  const bar = document.createElement('div');
+  bar.className = 'cog-ramp-legend-bar';
+  bar.style.backgroundImage = `linear-gradient(to right, ${COG_RAMP_COLORS[state.ramp].join(', ')})`;
+  const values = document.createElement('div');
+  values.className = 'cog-ramp-legend-values';
+  const min = document.createElement('span');
+  min.textContent = cogValueLabel(state.rangeMin);
+  const max = document.createElement('span');
+  max.textContent = cogValueLabel(state.rangeMax);
+  values.append(min, max);
+  legend.append(title, bar, values);
+}
+function initializeCogRampControls(w, panel, legend) {
+  const controls = panel.querySelector('.cog-ramp-controls');
+  const status = controls.querySelector('.cog-ramp-status');
+  const state = w.cogState;
+  const url = state.url;
+  const setup = async () => {
+    const metadata = await window.MaplibreCOGProtocol.getCogMetadata(url);
+    if (metadata.bitsPerSample?.length !== 1) {
+      status.textContent = 'Color ramps and hillshade are available for single-band COGs only.';
+      return;
+    }
+    const range = await sampleCogValueRange(url, metadata);
+    state.rangeMin = range.min;
+    state.rangeMax = range.max;
+    state.quantileBounds = cogQuantileBounds(range.values);
+    status.textContent = `Range sampled from a ${COG_RANGE_SAMPLE_SIZE} × ${COG_RANGE_SAMPLE_SIZE} overview sample.`;
+    const rampLabel = document.createElement('div');
+    rampLabel.className = 'cog-ramp-picker-row';
+    const rampLabelText = document.createElement('span');
+    rampLabelText.textContent = 'Color ramp';
+    const picker = document.createElement('div');
+    picker.className = 'cog-ramp-picker';
+    const rampButton = document.createElement('button');
+    rampButton.type = 'button';
+    rampButton.className = 'cog-ramp-picker-button';
+    rampButton.setAttribute('aria-haspopup', 'listbox');
+    rampButton.setAttribute('aria-expanded', 'false');
+    const currentPreview = document.createElement('span');
+    currentPreview.className = 'cog-ramp-preview';
+    const currentName = document.createElement('span');
+    currentName.className = 'cog-ramp-current-name';
+    rampButton.append(currentPreview, currentName);
+    const options = document.createElement('div');
+    options.className = 'cog-ramp-options';
+    options.setAttribute('role', 'listbox');
+    options.setAttribute('aria-label', 'Color ramps');
+    const rampNames = ['', ...Object.keys(COG_RAMP_COLORS)];
+    const optionButtons = rampNames.map(name => {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'cog-ramp-option';
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(name === state.ramp));
+      const label = document.createElement('span');
+      label.textContent = name || 'None (grayscale)';
+      const preview = document.createElement('span');
+      preview.className = 'cog-ramp-preview';
+      if (name) preview.style.backgroundImage = `linear-gradient(to right, ${COG_RAMP_COLORS[name].join(', ')})`;
+      else preview.classList.add('cog-ramp-preview-none');
+      option.append(label, preview);
+      options.appendChild(option);
+      option.onclick = () => {
+        state.ramp = name;
+        try {
+          updateCogColorLayers(w);
+          renderCogRampLegend(w, legend);
+          error.textContent = '';
+        } catch (cause) {
+          const message = `Could not apply ${w.name || w.id} color ramp: ${cause.message}`;
+          error.textContent = message;
+          toast(message);
+        }
+        updateRampPicker();
+        closeRampPicker();
+      };
+      return option;
+    });
+    picker.append(rampButton, options);
+    rampLabel.append(rampLabelText, picker);
+
+    const modeLabel = document.createElement('label');
+    modeLabel.className = 'cog-ramp-mode-row';
+    modeLabel.append('Style');
+    const modeSelect = document.createElement('select');
+    modeSelect.className = 'cog-ramp-mode-select';
+    modeSelect.add(new Option('Continuous', 'continuous'));
+    modeSelect.add(new Option(`Quantile (${COG_QUANTILE_CLASS_COUNT} stops, smooth)`, 'quantile'));
+    modeSelect.value = state.mode;
+    modeLabel.appendChild(modeSelect);
+    const error = document.createElement('div');
+    error.className = 'cog-ramp-error';
+    error.setAttribute('role', 'alert');
+    controls.replaceChildren(rampLabel, modeLabel, status, error);
+    const setPreview = (preview, name) => {
+      preview.classList.toggle('cog-ramp-preview-none', !name);
+      preview.style.backgroundImage = name
+        ? `linear-gradient(to right, ${COG_RAMP_COLORS[name].join(', ')})`
+        : '';
+    };
+    function updateRampPicker() {
+      currentName.textContent = state.ramp || 'None (grayscale)';
+      setPreview(currentPreview, state.ramp);
+      optionButtons.forEach((option, index) =>
+        option.setAttribute('aria-selected', String(rampNames[index] === state.ramp)));
+      rampButton.setAttribute('aria-label', `Color ramp: ${currentName.textContent}`);
+    }
+    function closeRampPicker() {
+      options.hidden = true;
+      rampButton.setAttribute('aria-expanded', 'false');
+    }
+    function openRampPicker(focusFirst = false) {
+      options.hidden = false;
+      rampButton.setAttribute('aria-expanded', 'true');
+      if (focusFirst) optionButtons[0].focus();
+    }
+    options.hidden = true;
+    rampButton.onclick = () => options.hidden ? openRampPicker() : closeRampPicker();
+    picker.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeRampPicker();
+        rampButton.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (options.hidden) {
+          openRampPicker(true);
+          return;
+        }
+        const currentIndex = optionButtons.indexOf(document.activeElement);
+        const startIndex = currentIndex < 0 ? (event.key === 'ArrowDown' ? -1 : 0) : currentIndex;
+        const offset = event.key === 'ArrowDown' ? 1 : -1;
+        optionButtons[(startIndex + offset + optionButtons.length) % optionButtons.length].focus();
+      }
+    });
+    document.addEventListener('click', event => {
+      if (!picker.contains(event.target)) closeRampPicker();
+    });
+
+    const shadeLabel = document.createElement('label');
+    shadeLabel.className = 'trow cog-hillshade-toggle';
+    const shadeToggle = document.createElement('input');
+    shadeToggle.type = 'checkbox';
+    shadeToggle.checked = state.hillshadeEnabled;
+    shadeLabel.append(shadeToggle, 'Create a hillshade blend');
+    controls.appendChild(shadeLabel);
+    const shadeStrength = document.createElement('label');
+    shadeStrength.className = 'trow cog-hillshade-strength';
+    shadeStrength.append('Hillshade strength ');
+    const strength = document.createElement('input');
+    strength.type = 'range';
+    strength.min = '0';
+    strength.max = '100';
+    strength.value = String(Math.round(state.hillshadeStrength * 100));
+    const strengthValue = document.createElement('output');
+    strengthValue.textContent = `${strength.value}%`;
+    shadeStrength.append(strength, strengthValue);
+    controls.appendChild(shadeStrength);
+
+    modeSelect.onchange = () => {
+      const previousMode = state.mode;
+      state.mode = modeSelect.value;
+      try {
+        updateCogColorLayers(w);
+        renderCogRampLegend(w, legend);
+        error.textContent = '';
+      } catch (cause) {
+        state.mode = previousMode;
+        modeSelect.value = previousMode;
+        const message = `Could not apply ${w.name || w.id} color style: ${cause.message}`;
+        error.textContent = message;
+        toast(message);
+      }
+    };
+    shadeToggle.onchange = () => {
+      state.hillshadeEnabled = shadeToggle.checked;
+      try {
+        if (shadeToggle.checked) createCogHillshade(w);
+        syncCogLayerMode(w);
+      } catch (cause) {
+        state.hillshadeEnabled = false;
+        shadeToggle.checked = false;
+        const message = `Could not create a hillshade for ${w.name || w.id}: ${cause.message}`;
+        status.textContent = message;
+        toast(message);
+      }
+    };
+    strength.oninput = () => {
+      state.hillshadeStrength = Number(strength.value) / 100;
+      strengthValue.textContent = `${strength.value}%`;
+      if (map.getLayer(state.hillshadeLayerId)) {
+        map.setPaintProperty(state.hillshadeLayerId, 'hillshade-exaggeration', effectiveCogHillshadeStrength(state));
+      }
+    };
+    updateRampPicker();
+    try {
+      updateCogColorLayers(w);
+      renderCogRampLegend(w, legend);
+    } catch (cause) {
+      const message = `Could not apply ${w.name || w.id} color ramp: ${cause.message}`;
+      error.textContent = message;
+      toast(message);
+      updateRampPicker();
+    }
+    if (state.hillshadeEnabled) {
+      try {
+        createCogHillshade(w);
+      } catch (cause) {
+        state.hillshadeEnabled = false;
+        shadeToggle.checked = false;
+        const message = `Could not create a hillshade for ${w.name || w.id}: ${cause.message}`;
+        error.textContent = message;
+        toast(message);
+      }
+    }
+  };
+  setup().catch(error => {
+    const message = `Could not inspect ${w.name || w.id} COG: ${error.message}`;
+    status.textContent = message;
+    toast(message);
+  });
+}
 function addRasterLayer(w, beforeId) {
   if (w.geojson) return addGeojsonLayer(w, beforeId);
+  const cogUrl = w.cog ? new URL(w.cog, location.href).href : null;
+  if (w.cog) {
+    const baseUrl = new URL(cogUrl);
+    baseUrl.hash = '';
+    w.cogState = {
+      url: baseUrl.href,
+      colorLayerIds: [],
+      hillshadeSourceId: `${w.id}__hillshade_source`,
+      hillshadeLayerId: `${w.id}__hillshade`,
+      hillshadeCreated: false,
+      hillshadeEnabled: true,
+      hillshadeStrength: COG_HILLSHADE_DEFAULTS.strength,
+      visible: w.visible === true,
+      opacity: w.opacity ?? 1,
+      rangeMin: null,
+      rangeMax: null,
+      quantileBounds: [],
+      mode: 'quantile',
+      ramp: COG_DEFAULT_RAMP
+    };
+    w.layerIds = [w.id, w.cogState.hillshadeLayerId];
+  }
   const source = w.cog
-    ? { type: 'raster', url: `cog://${new URL(w.cog, location.href).href}`, tileSize: w.tileSize || 256 }
+    ? { type: 'raster', url: `cog://${cogUrl}`, tileSize: w.tileSize || 256 }
     : { type: 'raster', tileSize: w.tileSize || 256, tiles: Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)] };
   if (w.attribution) source.attribution = w.attribution;
   if (Number.isFinite(w.maxzoom)) source.maxzoom = w.maxzoom;
@@ -2648,6 +3125,14 @@ const setOverlayTransparency = (w, v) => {
   if (w.hillshade) {
     terrainShadeStrength = hillshadeMax() * (1 - v / 100);   // hillshade has no opacity: transparency scales its strength
     map.setPaintProperty(w.id, 'hillshade-exaggeration', terrainShadeStrength);
+  } else if (w.cogState) {
+    w.cogState.opacity = 1 - v / 100;
+    [w.id, ...w.cogState.colorLayerIds].forEach(id => {
+      if (map.getLayer(id)) map.setPaintProperty(id, 'raster-opacity', w.cogState.opacity);
+    });
+    if (map.getLayer(w.cogState.hillshadeLayerId)) {
+      map.setPaintProperty(w.cogState.hillshadeLayerId, 'hillshade-exaggeration', effectiveCogHillshadeStrength(w.cogState));
+    }
   } else if (w.contours) {
     contourOpacity = 1 - v / 100;
     if (map.getLayer(CONTOUR_LINE_ID)) map.setPaintProperty(CONTOUR_LINE_ID, 'line-opacity', contourOpacity);
@@ -2994,24 +3479,38 @@ function buildOverlayLegend() {
         cb.checked = on;
         if (w.contours) contoursVisible = cb.checked;
         if (w.hillshade && on) addHillshadeLayer(activeTerrainModel, terrainLayerBeforeId, false);
-        setVis(layerIds, on);
+        if (w.cogState) {
+          w.cogState.visible = on;
+          syncCogLayerMode(w);
+        } else setVis(layerIds, on);
       };
       cb.onchange = () => setOverlayVisibility(cb.checked);
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(layerIds, on), set: setOverlayVisibility, el: d };
+      const cogControls = w.cogState
+        ? '<div class="cog-ramp-controls"><div class="cog-ramp-status" role="status">Inspecting COG bands…</div></div>'
+        : '';
       const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
-        w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : '');
+        w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : cogControls);
       const rowEl = d.querySelector('.grprow');
       if (w.legendUrl || arcgisLegendRequest(w)) rowEl.prepend(collapser(d, CONFIG.collapseLayers)); else rowEl.insertAdjacentHTML('afterbegin', '<span class="cspace"></span>');
       if (t.infoBtn) rowEl.appendChild(t.infoBtn);
       rowEl.appendChild(t.btn);
       if (t.infoPanel) d.appendChild(t.infoPanel);
       d.appendChild(t.panel);
+      if (w.cogState) {
+        const legend = document.createElement('div');
+        legend.className = 'cog-ramp-legend';
+        legend.hidden = true;
+        d.appendChild(legend);
+        initializeCogRampControls(w, t.panel, legend);
+      }
       if (w.hillshade) bindHillshadeControls(t.panel);
       if (w.contours) bindContourControls(t.panel);
       if (w.legendUrl) d.insertAdjacentHTML('beforeend', `<img src="${esc(w.legendUrl)}" alt="" style="max-width:100%;margin:2px 0 4px 20px">`);
       else renderArcgisLegend(d, w);
       body.appendChild(d);
       layerIds.forEach(id => group.layerIds.add(id));
+      if (w.cogState) w.groupLayerIds = group.layerIds;
     });
     const hasTerrain = list.some(w => w.terrain);
     if (hasTerrain) group.onVisibilityChange = visible => {

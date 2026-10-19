@@ -76,10 +76,10 @@ overlays: [
 { id: 'converted_cog', name: 'Converted COG', group: 'COG Rasters', cog: 'data/converted.tif', tileSize: 256, opacity: 1, visible: true },
 
 {
-  id: 'Mag Res',
-  name: 'Mag Res',
+  id: 'Magnetics Residual',
+  name: 'Magnetics Residual',
   group: 'Tellus COG',
-  cog: './data/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif',
   tileSize: 256,
   opacity: 1,
   visible: true
@@ -311,7 +311,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     { name: 'Geology WMS', 
       overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10K_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
     { name: 'Geophysics', 
-      overlays: ['Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
+      overlays: ['Magnetics Residual','Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
     { name: 'Hydrogeology', 
       overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer', 'esri_world_imagery'] },
     { name: 'Minerals', 

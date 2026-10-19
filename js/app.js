@@ -2500,13 +2500,13 @@ const COG_RAMP_COLORS = {
   Spectral: ['#d53e4f', '#fc8d59', '#fee08b', '#e6f598', '#99d594', '#3288bd'],
   ...COLORCET_RAMPS
 };
-const COG_DEFAULT_RAMP = 'Spectrum';
+const COG_DEFAULT_RAMP = 'CET rainbow4';
 const COG_QUANTILE_CLASS_COUNT = 64;
 const COG_RANGE_SAMPLE_SIZE = 256;
 const COG_HILLSHADE_DEFAULTS = {
   direction: 315,
   altitude: 45,
-  strength: 0.5,
+  strength: 0.2,
   shadowColor: '#000000',
   highlightColor: '#ffffff',
   accentColor: '#000000'
@@ -2593,6 +2593,9 @@ function cogQuantileRampColors(colors, bounds) {
       index / (COG_QUANTILE_CLASS_COUNT - 1);
     return cogRampColorAt(colors, cogQuantileFraction(value, bounds));
   });
+}
+function effectiveCogHillshadeStrength(state) {
+  return state.hillshadeStrength * state.opacity;
 }
 function setCogDerivedLayerSelected(w, id, selected) {
   const layerState = layerVisibility.get(id);
@@ -2694,7 +2697,7 @@ function createCogHillshade(w) {
     source: state.hillshadeSourceId,
     layout: { visibility: 'none' },
     paint: {
-      'hillshade-exaggeration': state.hillshadeStrength,
+      'hillshade-exaggeration': effectiveCogHillshadeStrength(state),
       'hillshade-illumination-direction': COG_HILLSHADE_DEFAULTS.direction,
       'hillshade-illumination-altitude': COG_HILLSHADE_DEFAULTS.altitude,
       'hillshade-illumination-anchor': 'map',
@@ -2859,6 +2862,7 @@ function initializeCogRampControls(w, panel, legend) {
     shadeLabel.className = 'trow cog-hillshade-toggle';
     const shadeToggle = document.createElement('input');
     shadeToggle.type = 'checkbox';
+    shadeToggle.checked = state.hillshadeEnabled;
     shadeLabel.append(shadeToggle, 'Create a hillshade blend');
     controls.appendChild(shadeLabel);
     const shadeStrength = document.createElement('label');
@@ -2906,7 +2910,7 @@ function initializeCogRampControls(w, panel, legend) {
       state.hillshadeStrength = Number(strength.value) / 100;
       strengthValue.textContent = `${strength.value}%`;
       if (map.getLayer(state.hillshadeLayerId)) {
-        map.setPaintProperty(state.hillshadeLayerId, 'hillshade-exaggeration', state.hillshadeStrength);
+        map.setPaintProperty(state.hillshadeLayerId, 'hillshade-exaggeration', effectiveCogHillshadeStrength(state));
       }
     };
     updateRampPicker();
@@ -2918,6 +2922,17 @@ function initializeCogRampControls(w, panel, legend) {
       error.textContent = message;
       toast(message);
       updateRampPicker();
+    }
+    if (state.hillshadeEnabled) {
+      try {
+        createCogHillshade(w);
+      } catch (cause) {
+        state.hillshadeEnabled = false;
+        shadeToggle.checked = false;
+        const message = `Could not create a hillshade for ${w.name || w.id}: ${cause.message}`;
+        error.textContent = message;
+        toast(message);
+      }
     }
   };
   setup().catch(error => {
@@ -2938,7 +2953,7 @@ function addRasterLayer(w, beforeId) {
       hillshadeSourceId: `${w.id}__hillshade_source`,
       hillshadeLayerId: `${w.id}__hillshade`,
       hillshadeCreated: false,
-      hillshadeEnabled: false,
+      hillshadeEnabled: true,
       hillshadeStrength: COG_HILLSHADE_DEFAULTS.strength,
       visible: w.visible === true,
       opacity: w.opacity ?? 1,
@@ -3115,6 +3130,9 @@ const setOverlayTransparency = (w, v) => {
     [w.id, ...w.cogState.colorLayerIds].forEach(id => {
       if (map.getLayer(id)) map.setPaintProperty(id, 'raster-opacity', w.cogState.opacity);
     });
+    if (map.getLayer(w.cogState.hillshadeLayerId)) {
+      map.setPaintProperty(w.cogState.hillshadeLayerId, 'hillshade-exaggeration', effectiveCogHillshadeStrength(w.cogState));
+    }
   } else if (w.contours) {
     contourOpacity = 1 - v / 100;
     if (map.getLayer(CONTOUR_LINE_ID)) map.setPaintProperty(CONTOUR_LINE_ID, 'line-opacity', contourOpacity);

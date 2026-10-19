@@ -75,6 +75,16 @@ overlays: [
 
 { id: 'converted_cog', name: 'Converted COG', group: 'COG Rasters', cog: 'data/converted.tif', tileSize: 256, opacity: 1, visible: true },
 
+{
+  id: 'Mag Res',
+  name: 'Mag Res',
+  group: 'Tellus COG',
+  cog: './data/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif',
+  tileSize: 256,
+  opacity: 1,
+  visible: true
+},
+
 ///////////////////////////////////////////////////////////////////////////
 //  10K Layers
 ///////////////////////////////////////////////////////////////////////////
@@ -295,7 +305,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     themes: [
     { name: 'Site Investigations', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
-      overlays: ['esri_world_imagery', 'converted_cog', 'lot1_ortho_ni'] },
+      overlays: ['Mag Res','esri_world_imagery', 'converted_cog', 'lot1_ortho_ni'] },
     { name: 'Geology', 
       layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
     { name: 'Geology WMS', 

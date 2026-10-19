@@ -20,7 +20,7 @@ Edit `config/config.js` to change the map-wide setup:
 
 - `datasets` associates a dataset ID and display name with a style file and PMTiles URL.
 - `basemaps` describes persistent raster basemaps.
-- `overlays` describes WMS, ArcGIS MapServer, and XYZ raster layers. Use `group` to organize overlays in the layer panel.
+- `overlays` describes WMS, ArcGIS MapServer, XYZ raster, and COG layers. Use `group` to organize overlays in the layer panel. Single-band COGs expose selectable color ramps with continuous or smooth 64-stop quantile styling, a horizontal min/max legend, and an optional hillshade blend in the layer transparency panel. Quantile stop positions come from a sample of the lowest-resolution available overview and are interpolated into one raster layer to avoid seams between independently masked classes. The default ramp is Spectrum. The picker also includes 27 continuous/diverging Colorcet `palette_n` ramps; their 256-color data and CC BY 4.0 attribution are in `js/colorcet-ramps.js`.
 - `themes` controls layer visibility. `layers` accepts vector source-layer names; `datasets` expands to the source layers from a configured dataset; `overlays` accepts overlay IDs; `groups` accepts style legend-group names, overlay-group names, or another named theme. Names are matched exactly and are case-sensitive. A theme with no selection properties allows all configured layers; specify at least one selection property to turn unlisted layers off.
 
 For example, Geomaterials currently uses `groups: ['Geology WMS']`. That named theme supplies its configured WMS overlay IDs to Geomaterials. Borehole depth and Quick Filters/Results Table remain Geomaterials-specific groups at the top of the layer panel.

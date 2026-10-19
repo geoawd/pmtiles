@@ -774,6 +774,9 @@ function syncMapLayerOrder() {
     map.moveLayer(layers[index], beforeId);
     beforeId = layers[index];
   }
+  map.getStyle().layers
+    .filter(layer => layer.id.startsWith('json-'))
+    .forEach(layer => map.moveLayer(layer.id));
 }
 let themeLayers = null;   // null = every layer; otherwise the layer names allowed by the active theme
 let themeBaseLayers = [];

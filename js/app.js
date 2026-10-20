@@ -873,17 +873,44 @@ const themeAdditions = (() => {
     const saved = JSON.parse(localStorage.getItem(THEME_ADDITIONS_KEY) || '{}');
     return new Map(Object.entries(saved).map(([name, additions]) => [name, {
       layers: new Set(Array.isArray(additions.layers) ? additions.layers.filter(value => typeof value === 'string') : []),
-      overlays: new Set(Array.isArray(additions.overlays) ? additions.overlays.filter(value => typeof value === 'string') : [])
+      overlays: new Set(Array.isArray(additions.overlays) ? additions.overlays.filter(value => typeof value === 'string') : []),
+      overlayGroups: new Set(Array.isArray(additions.overlayGroups) ? additions.overlayGroups.filter(value => typeof value === 'string') : [])
     }]));
   } catch { return new Map(); }
 })();
 function saveThemeAdditions() {
   try {
     localStorage.setItem(THEME_ADDITIONS_KEY, JSON.stringify(Object.fromEntries(
-      [...themeAdditions].map(([name, additions]) => [name, { layers: [...additions.layers], overlays: [...additions.overlays] }])
+      [...themeAdditions].map(([name, additions]) => [name, {
+        layers: [...additions.layers],
+        overlays: [...additions.overlays],
+        overlayGroups: [...additions.overlayGroups]
+      }])
     )));
     scheduleSessionSave();
   } catch { toast('Theme additions could not be saved in this browser.'); }
+}
+function addedRasterOverlaysToDisable(additions, overlayConfigs) {
+  const groupName = overlay => overlay.group || 'Overlays';
+  const groups = new Set(additions.overlayGroups);
+  const rasterOverlaysByGroup = new Map();
+  overlayConfigs.filter(overlay => !overlay.geojson).forEach(overlay => {
+    const name = groupName(overlay);
+    if (!rasterOverlaysByGroup.has(name)) rasterOverlaysByGroup.set(name, []);
+    rasterOverlaysByGroup.get(name).push(overlay);
+  });
+  rasterOverlaysByGroup.forEach((overlays, name) => {
+    if (overlays.length > 1 && overlays.every(overlay => additions.overlays.has(overlay.id))) groups.add(name);
+  });
+  const disabled = new Set();
+  groups.forEach(name => {
+    const overlays = rasterOverlaysByGroup.get(name) || [];
+    const firstOverlayId = overlays[0]?.id;
+    overlays.slice(1).filter(overlay => additions.overlays.has(overlay.id))
+      .forEach(overlay => disabled.add(overlay.id));
+    if (firstOverlayId) disabled.delete(firstOverlayId);
+  });
+  return disabled;
 }
 function readSessionSnapshot() {
   let raw;
@@ -1133,6 +1160,7 @@ function removeManualGroupAdditions(group) {
       if (key.startsWith('layer:')) additions.layers.delete(key.slice(6));
       else additions.overlays.delete(key.slice(8));
     });
+    additions.overlayGroups.delete(group.dataset.groupName);
     themeLayers = [...new Set([...themeBaseLayers, ...additions.layers])];
     themeOverlays = [...new Set([...themeBaseOverlays, ...additions.overlays])];
     saveThemeAdditions();
@@ -1205,7 +1233,7 @@ function setupThemes(preferredThemeName = null, honorSharedJsonState = true) {
     const t = list[i];
     activeThemeName = t.name;
     activeThemeAll = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
-    const additions = themeAdditions.get(t.name) || { layers: new Set(), overlays: new Set() };
+    const additions = themeAdditions.get(t.name) || { layers: new Set(), overlays: new Set(), overlayGroups: new Set() };
     const groupMembers = (t.groups || []).map(name => resolveThemeGroup(name));
     const overlayConfigs = validOverlays();
     const overlayGroupNames = new Set(overlayConfigs.map(overlay => overlay.group).filter(Boolean));
@@ -1236,9 +1264,14 @@ function setupThemes(preferredThemeName = null, honorSharedJsonState = true) {
       const inTheme = activeThemeAll || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
-    overlayGroups.forEach(group => group.ids.forEach((id, index) => ctl.ov[id]?.set(index === 0)));
+    overlayGroups.forEach(group => {
+      const cogIds = group.ids.filter(id => overlayConfigs.find(overlay => overlay.id === id)?.cog);
+      const enabledId = cogIds.length > 1 ? cogIds[0] : group.ids[0];
+      group.ids.forEach(id => ctl.ov[id]?.set(id === enabledId));
+    });
     additions.layers.forEach(id => ctl.data[id]?.set(true));
-    additions.overlays.forEach(id => ctl.ov[id]?.set(true));
+    const disabledAddedRasterOverlays = addedRasterOverlaysToDisable(additions, overlayConfigs);
+    additions.overlays.forEach(id => ctl.ov[id]?.set(!disabledAddedRasterOverlays.has(id)));
     document.querySelectorAll('#legend .lgroup:not(.json-theme-legend)').forEach(g => {   // hide headings with nothing left under them
       g.hidden = ![...g.querySelectorAll('.lgbody > *')].some(e => !e.hidden);
     });
@@ -1408,11 +1441,26 @@ function applySelectedThemeData() {
   if (!activeThemeName) return;
   const selected = [...$('addDataList').querySelectorAll('input[data-kind]:checked')];
   if (!selected.length) return;
-  const additions = themeAdditions.get(activeThemeName) || { layers: new Set(), overlays: new Set() };
+  const additions = themeAdditions.get(activeThemeName) || { layers: new Set(), overlays: new Set(), overlayGroups: new Set() };
+  const overlayConfigs = validOverlays();
+  $('addDataList').querySelectorAll('.add-data-group').forEach(fieldset => {
+    const groupCheck = fieldset.querySelector('input[data-group-check]');
+    if (!groupCheck?.checked) return;
+    const selectedIds = new Set([...fieldset.querySelectorAll('input[data-kind="overlay"]:checked')]
+      .map(input => input.dataset.id));
+    const selectedRasterOverlays = overlayConfigs.filter(overlay =>
+      (overlay.group || 'Overlays') === fieldset.dataset.groupName && !overlay.geojson && selectedIds.has(overlay.id));
+    if (selectedRasterOverlays.length > 1) additions.overlayGroups.add(fieldset.dataset.groupName);
+  });
+  selected.forEach(input => {
+    const { kind, id } = input.dataset;
+    if (kind === 'layer') additions.layers.add(id);
+    else if (kind === 'overlay') additions.overlays.add(id);
+  });
+  const disabledAddedRasterOverlays = addedRasterOverlaysToDisable(additions, overlayConfigs);
   selected.forEach(input => {
     const { kind, id } = input.dataset;
     if (kind === 'layer') {
-      additions.layers.add(id);
       if (themeLayers && !themeLayers.includes(id)) themeLayers.push(id);
       const control = ctl.data[id];
       if (control) {
@@ -1421,13 +1469,12 @@ function applySelectedThemeData() {
         control.set(true);
       }
     } else if (kind === 'overlay') {
-      additions.overlays.add(id);
       if (!themeOverlays.includes(id)) themeOverlays.push(id);
       const control = ctl.ov[id];
       if (control) {
         control.theme(true);
         control.el.hidden = false;
-        control.set(true);
+        control.set(!disabledAddedRasterOverlays.has(id));
       }
     }
   });

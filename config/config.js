@@ -94,7 +94,9 @@ overlays: [
   legendunits: 'nT',
   tileSize: 256,
   opacity: 1,
-  visible: false
+  visible: false,
+  hillshade_option: true
+
 },
 
 {
@@ -105,7 +107,9 @@ overlays: [
   legendunits: 'nT',
   tileSize: 256,
   opacity: 1,
-  visible: false
+  visible: false,
+  hillshade_option: true
+
 },
 
 {
@@ -138,7 +142,8 @@ overlays: [
   legendunits: 'mS/m',
   tileSize: 256,
   opacity: 1,
-  visible: false
+  visible: false,
+  hillshade_option: true
 },
 
 {
@@ -149,7 +154,8 @@ overlays: [
   legendunits: 'mS/m',
   tileSize: 256,
   opacity: 1,
-  visible: false
+  visible: false,
+  hillshade_option: true
 },
 
 {
@@ -193,7 +199,8 @@ overlays: [
   legendunits: 'cps',
   tileSize: 256,
   opacity: 1,
-  visible: false
+  visible: false,
+  hillshade_option: true
 },
 
 

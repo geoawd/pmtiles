@@ -2738,7 +2738,11 @@ function renderCogRampLegend(w, legend) {
   if (!state.ramp) return;
   const title = document.createElement('div');
   title.className = 'cog-ramp-legend-title';
-  title.textContent = state.ramp;
+  const units = document.createElement('span');
+  units.textContent = state.legendUnits;
+  const rampName = document.createElement('span');
+  rampName.textContent = state.ramp;
+  title.append(units, rampName);
   const bar = document.createElement('div');
   bar.className = 'cog-ramp-legend-bar';
   bar.style.backgroundImage = `linear-gradient(to right, ${COG_RAMP_COLORS[state.ramp].join(', ')})`;
@@ -2996,6 +3000,7 @@ function addRasterLayer(w, beforeId) {
       hillshadeStrength: COG_HILLSHADE_DEFAULTS.strength,
       visible: w.visible === true,
       opacity: w.opacity ?? 1,
+      legendUnits: typeof w.legendunits === 'string' ? w.legendunits : '',
       rangeMin: null,
       rangeMax: null,
       quantileBounds: [],

@@ -78,6 +78,7 @@ overlays: [
   name: 'Magnetics Residual',
   group: 'Tellus COG',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif',
+  legendunits: 'nT',
   tileSize: 256,
   opacity: 1,
   visible: false

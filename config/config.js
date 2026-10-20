@@ -133,7 +133,7 @@ overlays: [
   name: 'High Frequency (14kHz) EM',
   group: 'Tellus Electromagnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Electromagnetic (Minc from V3 gdb, cellsize 35m) 14KHz_Acon_FLT_cog.tif',
-  legendunits: 'nT',
+  legendunits: 'mS/m',
   tileSize: 256,
   opacity: 1,
   visible: false
@@ -144,11 +144,57 @@ overlays: [
   name: 'Low Frequency (3kHz) EM',
   group: 'Tellus Electromagnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Electromagnetic (Minc from V3 gdb, cellsize 35m) 3KHz_Acon_FLT_cog.tif',
-  legendunits: 'nT',
+  legendunits: 'mS/m',
   tileSize: 256,
   opacity: 1,
   visible: false
 },
+
+{
+  id: 'Uranium',
+  name: 'Uranium',
+  group: 'Tellus Radiometrics',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_URA_1.tif',
+  legendunits: 'ppm',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+{
+  id: 'Thorium',
+  name: 'Thorium',
+  group: 'Tellus Radiometrics',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_THO_1.tif',
+  legendunits: 'ppm',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+{
+  id: 'Potassium',
+  name: 'Potassium',
+  group: 'Tellus Radiometrics',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_KAL_1.tif',
+  legendunits: '%',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+{
+  id: 'Total Count',
+  name: 'Total Count',
+  group: 'Tellus Radiometrics',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_TOT_CPS.tif',
+  legendunits: 'cps',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+
 ///////////////////////////////////////////////////////////////////////////
 //  10K Layers
 ///////////////////////////////////////////////////////////////////////////
@@ -373,7 +419,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     { name: 'Geophysics WMS', 
       overlays: ['Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
   { name: 'Tellus Geophysics', 
-      overlays: ['Tellus Magnetics', 'Tellus Electromagnetics','esri_world_imagery'] },
+      overlays: ['Tellus Magnetics', 'Tellus Electromagnetics','Tellus Radiometrics','esri_world_imagery'] },
       { name: 'Hydrogeology', 
       overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer', 'esri_world_imagery'] },
   ],

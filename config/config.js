@@ -76,7 +76,7 @@ overlays: [
 {
   id: 'Magnetics Residual',
   name: 'Magnetics Residual',
-  group: 'Tellus COG',
+  group: 'Tellus Magnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif',
   legendunits: 'nT',
   tileSize: 256,
@@ -87,7 +87,7 @@ overlays: [
 {
   id: 'Magnetics RTP',
   name: 'Magnetics RTP',
-  group: 'Tellus COG',
+  group: 'Tellus Magnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - rtp_cog.tif',
   legendunits: 'nT',
   tileSize: 256,
@@ -98,7 +98,7 @@ overlays: [
 {
   id: 'Magnetics RTP Tilt Derivative',
   name: 'Magnetics RTP Tilt Derivative',
-  group: 'Tellus COG',
+  group: 'Tellus Magnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - rtp - TiltD_cog.tif',
   legendunits: 'nT',
   tileSize: 256,
@@ -109,7 +109,7 @@ overlays: [
 {
   id: 'Magnetics Pseudo Gravity',
   name: 'Magnetics Pseudo Gravity',
-  group: 'Tellus COG',
+  group: 'Tellus Magnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - psg_cog.tif',
   legendunits: 'nT',
   tileSize: 256,
@@ -120,7 +120,7 @@ overlays: [
 {
   id: 'Magnetics Pseudo Gravity Tilt Derivative',
   name: 'Magnetics Pseudo Gravity Tilt Derivative',
-  group: 'Tellus COG',
+  group: 'Tellus Magnetics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - psg - TiltD_cog.tif',
   legendunits: 'nT',
   tileSize: 256,
@@ -128,7 +128,27 @@ overlays: [
   visible: false
 },
 
+{
+  id: 'High Frequency EM',
+  name: 'High Frequency (14kHz) EM',
+  group: 'Tellus Electromagnetics',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Electromagnetic (Minc from V3 gdb, cellsize 35m) 14KHz_Acon_FLT_cog.tif',
+  legendunits: 'nT',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
 
+{
+  id: 'Low Frequency EM',
+  name: 'Low Frequency (3kHz) EM',
+  group: 'Tellus Electromagnetics',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Electromagnetic (Minc from V3 gdb, cellsize 35m) 3KHz_Acon_FLT_cog.tif',
+  legendunits: 'nT',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
 ///////////////////////////////////////////////////////////////////////////
 //  10K Layers
 ///////////////////////////////////////////////////////////////////////////
@@ -302,7 +322,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
   // Group-level information: key = group name exactly as shown in the legend (overlay `group`, or a vector legend group).
   // Same formats as layerInfo. Every layer in the group shows it unless the layer has its own entry in layerInfo (or `info`).
   groupInfo: {
-    'Tellus COG': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
+    'Tellus Magnetics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
     'Geophysics - Magnetics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
     'Geophysics - Electromagnetics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
     'Geophysics - Radiometrics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
@@ -345,15 +365,15 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     themes: [
     { name: 'Site Investigations', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
-      overlays: ['Tellus COG', 'esri_world_imagery', 'lot1_ortho_ni'] },
+      overlays: ['esri_world_imagery', 'lot1_ortho_ni'] },
     { name: 'Geology',
       layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
     { name: 'Geology WMS',
       overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10K_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
     { name: 'Geophysics WMS', 
-      overlays: ['Magnetics Residual','Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
-  { name: 'Geophysics', 
-      overlays: ['Tellus COG', 'esri_world_imagery'] },
+      overlays: ['Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
+  { name: 'Tellus Geophysics', 
+      overlays: ['Tellus Magnetics', 'Tellus Electromagnetics','esri_world_imagery'] },
       { name: 'Hydrogeology', 
       overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer', 'esri_world_imagery'] },
   ],

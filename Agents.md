@@ -36,4 +36,4 @@ The server opens the app in a browser on port 8000 by default. Use `python3 serv
 
 ## Development and validation
 
-There is no package manifest, build command, or automated test suite configured in the repository. Keep changes compatible with the existing plain JavaScript modules and browser-loaded scripts. For runtime changes, start the local server and smoke-test the affected theme and map interactions in a browser; check the browser console and network requests for load or configuration errors.
+Run the configuration checks with `npm test` (Node.js 18 or later; no dependencies need to be installed). Keep changes compatible with the existing plain JavaScript modules and browser-loaded scripts. For runtime changes, start the local server and smoke-test the affected theme and map interactions in a browser; check the browser console and network requests for load or configuration errors.

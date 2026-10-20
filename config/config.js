@@ -170,7 +170,7 @@ overlays: [
 },
 
 {
-  id: 'Thorium',
+  id: 'tellus_thorium',
   name: 'Thorium',
   group: 'Tellus Radiometrics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_THO_1.tif',
@@ -181,7 +181,7 @@ overlays: [
 },
 
 {
-  id: 'Potassium',
+  id: 'tellus_potassium',
   name: 'Potassium',
   group: 'Tellus Radiometrics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_KAL_1.tif',
@@ -192,7 +192,7 @@ overlays: [
 },
 
 {
-  id: 'Total Count',
+  id: 'tellus_total_count',
   name: 'Total Count',
   group: 'Tellus Radiometrics',
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Radiometric (Minc from V3 gdb, cellsize 35m) D_TOT_CPS.tif',

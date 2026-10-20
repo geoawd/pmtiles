@@ -57,6 +57,7 @@ window.CONFIG = {
 // XYZ:  { id: 'x1', name: 'My tiles', tiles: 'https://example.org/{z}/{x}/{y}.png', maxzoom: 18 },
 // Optional on any overlay: group, opacity (0-1), visible (true/false), attribution, minzoom, maxzoom, legendUrl (image),
 //   info (https link shown as an 'i' link in the layer's panel)
+// For COGs, hillshade controls are hidden by default; set hillshade_option: true to show them and enable hillshade initially.
 
 // GeoJSON outline (hollow line) layer, reprojected from Irish Grid:
 //   { id: 'g1', name: 'My boundary', group: 'Boundaries', geojson: true, url: 'data/boundary.geojson', projection: 'EPSG:29902',
@@ -81,7 +82,8 @@ overlays: [
   legendunits: 'nT',
   tileSize: 256,
   opacity: 1,
-  visible: false
+  visible: false,
+  hillshade_option: true
 },
 
 {

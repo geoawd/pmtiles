@@ -1,0 +1,12 @@
+{
+  "si_strata": [
+    { "OBJECTID": 18515, "FROM_DEPTH": 0, "TO_DEPTH": 6, "LITHOLOGY": "Clay", "DESCRIPTION": "Firm brown clay" },
+    { "OBJECTID": 18515, "FROM_DEPTH": 6, "TO_DEPTH": 45, "LITHOLOGY": "Limestone", "DESCRIPTION": "Grey limestone" },
+    { "OBJECTID": 18516, "FROM_DEPTH": 0, "TO_DEPTH": 4, "LITHOLOGY": "Gravel", "DESCRIPTION": "Sandy gravel" },
+    { "OBJECTID": 18516, "FROM_DEPTH": 4, "TO_DEPTH": 48, "LITHOLOGY": "Limestone", "DESCRIPTION": "Grey limestone" },
+    { "OBJECTID": 18517, "FROM_DEPTH": 0, "TO_DEPTH": 7, "LITHOLOGY": "Till", "DESCRIPTION": "Stiff gravelly clay" },
+    { "OBJECTID": 18517, "FROM_DEPTH": 7, "TO_DEPTH": 15, "LITHOLOGY": "Mudstone", "DESCRIPTION": "Weathered mudstone" },
+    { "OBJECTID": 18509, "FROM_DEPTH": 0, "TO_DEPTH": 5, "LITHOLOGY": "Sand", "DESCRIPTION": "Medium dense sand" },
+    { "OBJECTID": 18511, "FROM_DEPTH": 0, "TO_DEPTH": 5, "LITHOLOGY": "Sand", "DESCRIPTION": "Medium dense sand" }
+  ]
+}

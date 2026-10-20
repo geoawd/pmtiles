@@ -1,0 +1,28 @@
+{
+  "test_sites": [
+    {
+      "SITE_ID": "SITE-001",
+      "SITE_NAME": "Loughshore North",
+      "CATEGORY": "Monitoring well",
+      "STATUS": "Active",
+      "SITE_SCORE": 92,
+      "GEOM": "POLYGON ((-6.2500 54.6550, -6.2360 54.6550, -6.2360 54.6460, -6.2500 54.6460, -6.2500 54.6550))"
+    },
+    {
+      "SITE_ID": "SITE-002",
+      "SITE_NAME": "Marlfield East",
+      "CATEGORY": "Sampling station",
+      "STATUS": "Active",
+      "SITE_SCORE": 78,
+      "GEOM": "LINESTRING (-6.1150 54.5690, -6.1052 54.5731, -6.0950 54.5780)"
+    },
+    {
+      "SITE_ID": "SITE-003",
+      "SITE_NAME": "Drumlin South",
+      "CATEGORY": "Monitoring well",
+      "STATUS": "Inactive",
+      "SITE_SCORE": 61,
+      "GEOM": "POINT (-6.3184 54.5016)"
+    }
+  ]
+}

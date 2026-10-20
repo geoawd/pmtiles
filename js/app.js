@@ -349,8 +349,9 @@ $('startTour').onclick = startTour;
 // ---------- Query helpers ----------
 function dataLayers() {
   const geojson = (CONFIG.overlays || []).filter(w => w.geojson).flatMap(w => w.layerIds || [w.id]).filter(id => map.getLayer(id));
-  if (CONFIG.queryLayers) return [...CONFIG.queryLayers, ...geojson];
   const st = map.getStyle();
+  if (!st?.layers || !st.sources) return geojson;
+  if (CONFIG.queryLayers) return [...CONFIG.queryLayers, ...geojson];
   return [...st.layers.filter(l => l.source && st.sources[l.source] && st.sources[l.source].type === 'vector').map(l => l.id), ...geojson];
 }
 ///////////////////////////////////////////////////////////////////////////
@@ -823,7 +824,10 @@ function enableLegendReordering() {
   });
   root.addEventListener('dragend', () => {
     root.querySelectorAll('.dragging, .drop-before, .drop-after').forEach(element => element.classList.remove('dragging', 'drop-before', 'drop-after'));
-    if (moved) syncMapLayerOrder();
+    if (moved) {
+      syncMapLayerOrder();
+      scheduleSessionSave();
+    }
     dragged = null;
     dragHandle = null;
     moved = false;
@@ -858,6 +862,12 @@ let activeThemeAll = false;
 let themeOverlays = [];
 let themeBaseOverlays = [];
 const THEME_ADDITIONS_KEY = 'mapviewer.theme-additions.v1';
+const SESSION_STATE_KEY = 'mapviewer.session.v1';
+const SESSION_STATE_VERSION = 1;
+let startupSessionSnapshot = null;
+let sessionPersistenceReady = false;
+let sessionSaveTimer = null;
+let sessionSaveFailed = false;
 const themeAdditions = (() => {
   try {
     const saved = JSON.parse(localStorage.getItem(THEME_ADDITIONS_KEY) || '{}');
@@ -872,7 +882,225 @@ function saveThemeAdditions() {
     localStorage.setItem(THEME_ADDITIONS_KEY, JSON.stringify(Object.fromEntries(
       [...themeAdditions].map(([name, additions]) => [name, { layers: [...additions.layers], overlays: [...additions.overlays] }])
     )));
+    scheduleSessionSave();
   } catch { toast('Theme additions could not be saved in this browser.'); }
+}
+function readSessionSnapshot() {
+  let raw;
+  try { raw = localStorage.getItem(SESSION_STATE_KEY); }
+  catch (error) {
+    console.warn('Saved map session could not be read:', error);
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const snapshot = JSON.parse(raw);
+    const center = snapshot?.view?.center;
+    if (snapshot?.version !== SESSION_STATE_VERSION
+      || !Array.isArray(center) || center.length !== 2 || !center.every(Number.isFinite)
+      || !Number.isFinite(snapshot.view.zoom)) {
+      console.warn('Ignoring an incompatible saved map session.');
+      return null;
+    }
+    return snapshot;
+  } catch (error) {
+    console.warn('Ignoring an unreadable saved map session:', error);
+    return null;
+  }
+}
+function chooseSessionStartup() {
+  const snapshot = readSessionSnapshot();
+  if (!snapshot) return Promise.resolve({ action: 'start', snapshot: null });
+  const dialog = $('sessionRestoreDialog');
+  return new Promise(resolve => {
+    const finish = event => {
+      const button = event.target instanceof Element ? event.target.closest('[data-session-choice]') : null;
+      if (!button) return;
+      dialog.removeEventListener('click', finish);
+      dialog.close();
+      resolve({ action: button.dataset.sessionChoice, snapshot });
+    };
+    dialog.addEventListener('click', finish);
+    dialog.showModal();
+  });
+}
+function clearSavedThemeAdditions() {
+  themeAdditions.clear();
+  try { localStorage.removeItem(THEME_ADDITIONS_KEY); }
+  catch (error) {
+    console.warn('Saved theme additions could not be cleared:', error);
+    toast('Saved theme additions could not be cleared in this browser.');
+  }
+}
+function sessionSnapshot() {
+  const rowFor = key => [...$('legend').querySelectorAll('[data-order-key]')]
+    .find(row => row.dataset.orderKey === key);
+  const vector = Object.fromEntries(Object.entries(ctl.data).map(([id, control]) => {
+    const row = control.el;
+    return [id, {
+      selected: !!row.querySelector('.grp input')?.checked,
+      entries: [...row.querySelectorAll('.ent input')].map(input => input.checked),
+      transparency: Number(row.querySelector('.lpanel input[type="range"]')?.value || 0)
+    }];
+  }));
+  const overlays = Object.fromEntries(allOverlays().map(overlay => {
+    const checkbox = rowFor(`overlay:${overlay.id}`)?.querySelector('.grprow input[type="checkbox"]');
+    return checkbox ? [overlay.id, checkbox.checked] : null;
+  }).filter(Boolean));
+  const basemaps = Object.fromEntries(validBasemaps().map(basemap => {
+    const checkbox = rowFor(`basemap:${basemap.id}`)?.querySelector('.grprow input[type="checkbox"]');
+    return checkbox ? [basemap.id, checkbox.checked] : null;
+  }).filter(Boolean));
+  const transparency = {};
+  [...$('legend').querySelectorAll('[data-order-key]')].forEach(row => {
+    const key = row.dataset.orderKey;
+    const input = row.querySelector('.lpanel input[type="range"]');
+    if (input && (key.startsWith('overlay:') || key.startsWith('basemap:'))) transparency[key] = Number(input.value);
+  });
+  const cogs = Object.fromEntries(allOverlays().filter(overlay => overlay.cogState).map(overlay => {
+    const state = overlay.cogState;
+    return [overlay.id, {
+      ramp: state.ramp,
+      mode: state.mode,
+      hillshadeEnabled: state.hillshadeEnabled,
+      hillshadeStrength: state.hillshadeStrength,
+      hillshadeVerticalScale: state.hillshadeVerticalScale,
+      opacity: state.opacity
+    }];
+  }));
+  const center = map.getCenter();
+  return {
+    version: SESSION_STATE_VERSION,
+    theme: activeThemeName,
+    view: {
+      center: center.toArray(),
+      zoom: map.getZoom(),
+      bearing: map.getBearing(),
+      pitch: map.getPitch(),
+      projection: map.getProjection?.()?.type || 'mercator'
+    },
+    vector,
+    overlays,
+    basemaps,
+    transparency,
+    cogs,
+    hiddenGroups: [...$('legend').querySelectorAll('.lgroup.group-hidden')].map(group => group.dataset.groupName),
+    terrain: {
+      enabled: terrainOn,
+      model: activeTerrainModel?.id || null,
+      exaggeration: terrainExaggeration
+    },
+    hillshadeStyle: { ...hillshadeStyle },
+    contourColors: { ...contourColors },
+    contourOpacity
+  };
+}
+function saveSessionSnapshot() {
+  if (!sessionPersistenceReady) return;
+  try {
+    localStorage.setItem(SESSION_STATE_KEY, JSON.stringify(sessionSnapshot()));
+    sessionSaveFailed = false;
+  } catch (error) {
+    console.warn('Map session could not be saved:', error);
+    if (!sessionSaveFailed) toast('Map session could not be saved in this browser.');
+    sessionSaveFailed = true;
+  }
+}
+function scheduleSessionSave() {
+  if (!sessionPersistenceReady) return;
+  clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(saveSessionSnapshot, 300);
+}
+function restoreSessionSnapshot(snapshot) {
+  if (!snapshot) return;
+  Object.entries(snapshot.vector || {}).forEach(([id, saved]) => {
+    const row = ctl.data[id]?.el;
+    const checkbox = row?.querySelector('.grp input');
+    if (!checkbox || typeof saved.selected !== 'boolean') return;
+    checkbox.checked = saved.selected;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    const entries = [...row.querySelectorAll('.ent input')];
+    (Array.isArray(saved.entries) ? saved.entries : []).forEach((checked, index) => {
+      if (!entries[index] || typeof checked !== 'boolean') return;
+      entries[index].checked = checked;
+      entries[index].dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const transparency = row.querySelector('.lpanel input[type="range"]');
+    if (transparency && Number.isFinite(saved.transparency)) {
+      transparency.value = String(Math.max(0, Math.min(100, saved.transparency)));
+      transparency.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+  const rowFor = key => [...$('legend').querySelectorAll('[data-order-key]')]
+    .find(row => row.dataset.orderKey === key);
+  Object.entries(snapshot.overlays || {}).forEach(([id, visible]) => {
+    if (typeof visible !== 'boolean') return;
+    const checkbox = rowFor(`overlay:${id}`)?.querySelector('.grprow input[type="checkbox"]');
+    if (checkbox) { checkbox.checked = visible; checkbox.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  Object.entries(snapshot.basemaps || {}).forEach(([id, visible]) => {
+    if (typeof visible !== 'boolean') return;
+    const checkbox = rowFor(`basemap:${id}`)?.querySelector('.grprow input[type="checkbox"]');
+    if (checkbox) { checkbox.checked = visible; checkbox.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  Object.entries(snapshot.transparency || {}).forEach(([key, value]) => {
+    if (!Number.isFinite(value)) return;
+    const input = rowFor(key)?.querySelector('.lpanel input[type="range"]');
+    if (!input) return;
+    input.value = String(Math.max(0, Math.min(100, value)));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const hiddenGroups = new Set(Array.isArray(snapshot.hiddenGroups) ? snapshot.hiddenGroups : []);
+  $('legend').querySelectorAll('.lgroup').forEach(group => {
+    const eye = group.querySelector('.lgeye');
+    if (eye && hiddenGroups.has(group.dataset.groupName) && eye.getAttribute('aria-pressed') !== 'true') eye.click();
+  });
+  if (snapshot.terrain && Number.isFinite(snapshot.terrain.exaggeration)) {
+    const modelId = terrainModels.find(model => model.id === snapshot.terrain.model)?.id;
+    if (modelId && activeTerrainModel?.id !== modelId) setTerrainModel(modelId);
+    terrainExaggeration = Math.min(3, Math.max(1, snapshot.terrain.exaggeration));
+    const slider = $('legend').querySelector('.terrain-exaggeration');
+    if (slider) {
+      slider.value = String(terrainExaggeration);
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (snapshot.terrain.enabled && terrainCb && !terrainCb.checked) setTerrain3D(true, true, false);
+  }
+  if (snapshot.view?.projection === 'globe' || snapshot.view?.projection === 'mercator') {
+    const globe = snapshot.view.projection === 'globe';
+    map.setProjection({ type: globe ? 'globe' : 'mercator' });
+    $('globeBtn').classList.toggle('active', globe);
+    $('globeBtn').setAttribute('aria-pressed', String(globe));
+  }
+  const view = snapshot.view;
+  map.jumpTo({
+    center: view.center,
+    zoom: view.zoom,
+    bearing: Number.isFinite(view.bearing) ? view.bearing : 0,
+    pitch: Number.isFinite(view.pitch) ? view.pitch : 0
+  });
+  updateScaleState();
+  updateArcgisLegendInView();
+}
+function prepareSessionSnapshot(snapshot) {
+  const savedStyle = snapshot?.hillshadeStyle;
+  if (savedStyle) {
+    if (HILLSHADE_METHODS.some(([method]) => method === savedStyle.method)) hillshadeStyle.method = savedStyle.method;
+    if (savedStyle.anchor === 'map' || savedStyle.anchor === 'viewport') hillshadeStyle.anchor = savedStyle.anchor;
+    [['direction', 0, 359], ['altitude', 0, 90]].forEach(([key, min, max]) => {
+      if (Number.isFinite(savedStyle[key])) hillshadeStyle[key] = Math.max(min, Math.min(max, savedStyle[key]));
+    });
+    [['shadowColor', 'shadowColor'], ['highlightColor', 'highlightColor'], ['accentColor', 'accentColor']].forEach(([key, field]) => {
+      if (typeof savedStyle[field] === 'string' && /^#[0-9a-f]{6}$/i.test(savedStyle[field])) hillshadeStyle[key] = savedStyle[field];
+    });
+  }
+  if (snapshot.contourColors) {
+    ['minor', 'major'].forEach(key => {
+      if (typeof snapshot.contourColors[key] === 'string' && /^#[0-9a-f]{6}$/i.test(snapshot.contourColors[key]))
+        contourColors[key] = snapshot.contourColors[key];
+    });
+  }
+  if (Number.isFinite(snapshot.contourOpacity)) contourOpacity = Math.max(0, Math.min(1, snapshot.contourOpacity));
 }
 function updateManualRemovalControls() {
   const additions = themeAdditions.get(activeThemeName);
@@ -966,7 +1194,7 @@ function resolveThemeGroup(name, seen = new Set()) {
 ///////////////////////////////////////////////////////////////////////////
 // Applies configured theme visibility to vector layers, overlays, and JSON data.
 ///////////////////////////////////////////////////////////////////////////
-function setupThemes() {
+function setupThemes(preferredThemeName = null, honorSharedJsonState = true) {
   const list = CONFIG.themes || [];
   $('themeBar').hidden = !list.length;
   if (!list.length) return;
@@ -1023,8 +1251,10 @@ function setupThemes() {
   };
   sel.onchange = () => apply(sel.value);
   const firstJsonTheme = list.findIndex(theme => theme.jsonTheme && theme.jsonConfig);
-  const hasSharedJsonState = !!location.hash && firstJsonTheme >= 0;
-  const initialTheme = hasSharedJsonState ? firstJsonTheme : (CONFIG.defaultTheme || 0);
+  const hasSharedJsonState = honorSharedJsonState && !!location.hash && firstJsonTheme >= 0;
+  const preferredIndex = list.findIndex(theme => theme.name === preferredThemeName);
+  const initialTheme = preferredIndex >= 0 ? preferredIndex
+    : hasSharedJsonState ? firstJsonTheme : (CONFIG.defaultTheme || 0);
   sel.value = initialTheme;
   apply(sel.value);
 }
@@ -2293,6 +2523,16 @@ function restoreJsonThemeState() {
   }
   const center = saved.map?.center || (Number.isFinite(saved.map?.lng) && Number.isFinite(saved.map?.lat) ? [saved.map.lng, saved.map.lat] : null);
   const zoom = saved.map?.zoom;
+  const sessionView = startupSessionSnapshot?.view;
+  if (sessionView && Array.isArray(sessionView.center) && Number.isFinite(sessionView.zoom)) {
+    map.jumpTo({
+      center: sessionView.center,
+      zoom: sessionView.zoom,
+      bearing: Number.isFinite(sessionView.bearing) ? sessionView.bearing : 0,
+      pitch: Number.isFinite(sessionView.pitch) ? sessionView.pitch : 0
+    });
+    return;
+  }
   if (Array.isArray(center) && center.length === 2 && center.every(Number.isFinite) &&
       Math.abs(center[0]) <= 180 && Math.abs(center[1]) <= 85.051129 &&
       Number.isFinite(zoom) && zoom >= 0 && zoom <= 28) map.jumpTo({ center, zoom });
@@ -2939,8 +3179,11 @@ function initializeCogRampControls(w, panel, legend) {
     state.rangeMin = range.min;
     state.rangeMax = range.max;
     state.hillshadeVerticalCenter = range.min + (range.max - range.min) / 2;
-    state.hillshadeVerticalScale = Math.max(1, Math.min(COG_HILLSHADE_MAX_VERTICAL_SCALE,
-      Math.round(COG_HILLSHADE_TARGET_RANGE / (range.max - range.min))));
+    state.hillshadeVerticalScale = Number.isFinite(state.restoredHillshadeVerticalScale)
+      ? Math.max(1, Math.min(COG_HILLSHADE_MAX_VERTICAL_SCALE, state.restoredHillshadeVerticalScale))
+      : Math.max(1, Math.min(COG_HILLSHADE_MAX_VERTICAL_SCALE,
+        Math.round(COG_HILLSHADE_TARGET_RANGE / (range.max - range.min))));
+    delete state.restoredHillshadeVerticalScale;
     state.quantileBounds = cogQuantileBounds(range.values);
     state.percentileRange = cogPercentileRange(range.values);
     status.textContent = `Range sampled from a ${COG_RANGE_SAMPLE_SIZE} × ${COG_RANGE_SAMPLE_SIZE} overview sample.`;
@@ -3185,26 +3428,35 @@ function addRasterLayer(w, beforeId) {
   if (w.cog) {
     const baseUrl = new URL(cogUrl);
     baseUrl.hash = '';
+    const saved = startupSessionSnapshot?.cogs?.[w.id];
+    if (saved && Number.isFinite(saved.opacity) && saved.opacity >= 0 && saved.opacity <= 1) w.opacity = saved.opacity;
+    const ramp = typeof saved?.ramp === 'string' && (saved.ramp === '' || saved.ramp in COG_RAMP_COLORS)
+      ? saved.ramp : COG_DEFAULT_RAMP;
     w.cogState = {
       url: baseUrl.href,
       colorLayerIds: [],
       hillshadeSourceId: `${w.id}__hillshade_source`,
       hillshadeLayerId: `${w.id}__hillshade`,
       hillshadeCreated: false,
-      hillshadeEnabled: true,
-      hillshadeStrength: COG_HILLSHADE_DEFAULTS.strength,
+      hillshadeEnabled: typeof saved?.hillshadeEnabled === 'boolean' ? saved.hillshadeEnabled : true,
+      hillshadeStrength: Number.isFinite(saved?.hillshadeStrength)
+        ? Math.max(0, Math.min(1, saved.hillshadeStrength)) : COG_HILLSHADE_DEFAULTS.strength,
       hillshadeVerticalScale: 1,
+      restoredHillshadeVerticalScale: Number.isFinite(saved?.hillshadeVerticalScale)
+        ? saved.hillshadeVerticalScale : null,
       hillshadeVerticalCenter: 0,
-      visible: w.visible === true,
+      visible: typeof startupSessionSnapshot?.overlays?.[w.id] === 'boolean'
+        ? startupSessionSnapshot.overlays[w.id] : w.visible === true,
       opacity: w.opacity ?? 1,
       legendUnits: typeof w.legendunits === 'string' ? w.legendunits : '',
       rangeMin: null,
       rangeMax: null,
       quantileBounds: [],
       percentileRange: null,
-      mode: 'quantile',
-      ramp: COG_DEFAULT_RAMP
+      mode: ['continuous', 'quantile', 'percentile'].includes(saved?.mode) ? saved.mode : 'quantile',
+      ramp
     };
+    w.visible = w.cogState.visible;
     w.layerIds = [w.id, w.cogState.hillshadeLayerId];
   }
   const source = w.cog
@@ -3790,7 +4042,20 @@ function buildBasemapLegend() {
   });
 }
 
-map.on('load', () => {
+map.on('load', async () => {
+  const startup = await chooseSessionStartup();
+  startupSessionSnapshot = startup.action === 'resume' ? startup.snapshot : null;
+  if (startup.action === 'reset') clearSavedThemeAdditions();
+  if (startup.action === 'start-over' || startup.action === 'reset') {
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+  }
+  if (startup.action !== 'resume') {
+    try { localStorage.removeItem(SESSION_STATE_KEY); }
+    catch (error) {
+      console.warn('Previous map session could not be cleared:', error);
+      toast('Previous map session could not be cleared in this browser.');
+    }
+  } else prepareSessionSnapshot(startupSessionSnapshot);
   const style = map.getStyle();
   originalStyleIds = new Set([...Object.keys(style.sources), ...style.layers.map(l => l.id)]);
   const firstData = style.layers.find(l => l['source-layer']);
@@ -3800,9 +4065,13 @@ map.on('load', () => {
   terrainLayerBeforeId = firstData && firstData.id;
   if (tc && terrainModels.length && window.MaplibreCOGProtocol) {
     activeTerrainModel = terrainModels.find(m => m.id === tc.defaultModel) || terrainModels[0];
-    if (tc.hillshade !== false && tc.hillshadeVisible)
+    const savedHillshadeVisible = startupSessionSnapshot?.overlays?.hillshade;
+    const hillshadeVisible = typeof savedHillshadeVisible === 'boolean' ? savedHillshadeVisible : tc.hillshadeVisible === true;
+    if (tc.hillshade !== false && hillshadeVisible)
       addHillshadeLayer(activeTerrainModel, firstData && firstData.id, true);
-    if (tc.hillshade !== false) registerLayerVisibility('hillshade', tc.hillshadeVisible === true);
+    if (tc.hillshade !== false) registerLayerVisibility('hillshade', hillshadeVisible);
+    if (typeof startupSessionSnapshot?.overlays?.[CONTOUR_LINE_ID] === 'boolean')
+      contoursVisible = startupSessionSnapshot.overlays[CONTOUR_LINE_ID];
     setupTerrainContours(activeTerrainModel, firstData && firstData.id);
   } else $('terrainBtn').style.display = 'none';   // no DTM configured
   reverseWithinGroups(validOverlays()).forEach(w => addRasterLayer(w, firstSymbol && firstSymbol.id));
@@ -3810,7 +4079,24 @@ map.on('load', () => {
   buildOverlayLegend();
   buildBasemapLegend();
   enableLegendReordering();
-  setupThemes();
+  setupThemes(startupSessionSnapshot?.theme || null, startup.action === 'start');
+  if (startupSessionSnapshot) restoreSessionSnapshot(startupSessionSnapshot);
+  sessionPersistenceReady = true;
+  const onSessionControlChange = event => {
+    const target = event.target;
+    if (target instanceof Element && (target.closest('#legend') || target.id === 'themeSel')) scheduleSessionSave();
+  };
+  document.addEventListener('change', onSessionControlChange);
+  document.addEventListener('input', onSessionControlChange);
+  document.addEventListener('click', event => {
+    if (event.target instanceof Element && event.target.closest('#legend')) scheduleSessionSave();
+  });
+  map.on('moveend', scheduleSessionSave);
+  window.addEventListener('pagehide', () => {
+    clearTimeout(sessionSaveTimer);
+    saveSessionSnapshot();
+  });
+  scheduleSessionSave();
   updateArcgisLegendInView();
   loadScaleInfo().then(updateScaleState);
   populateSearchLayers();
@@ -3846,6 +4132,7 @@ $('globeBtn').onclick = () => {
   const label = enabled ? 'Switch to Mercator view' : 'Switch to globe view';
   globe.title = label;
   globe.setAttribute('aria-label', label);
+  scheduleSessionSave();
 };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && boxMode) setBox(false); });
 
@@ -4217,7 +4504,12 @@ map.on('pitchstart', e => {   // user tilting (right-drag / two-finger swipe) sw
 map.on('moveend', () => {
   if (terrainOn && map.getPitch() < 1) setTerrain3D(false);
 });
-$('terrainBtn').onclick = () => { if (!terrainGroupHidden) setTerrain3D(!terrainOn); };
+$('terrainBtn').onclick = () => {
+  if (!terrainGroupHidden) {
+    setTerrain3D(!terrainOn);
+    scheduleSessionSave();
+  }
+};
 
 // ---------- Print (map image + key of the layers currently switched on) ----------
 function mapImage() {

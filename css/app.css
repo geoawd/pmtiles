@@ -7,6 +7,12 @@
   button:hover { background: #f1f4f6; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ac); outline-offset: 1px; }
   button.primary { background: var(--ac); border-color: var(--ac); color: #fff; }
+  #sessionRestoreDialog { width: min(440px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 8px; padding: 22px; color: var(--ink); box-shadow: 0 8px 32px rgba(0,0,0,.28); }
+  #sessionRestoreDialog::backdrop { background: rgba(14,22,28,.58); }
+  #sessionRestoreDialog h2 { margin: 0 0 8px; font-size: 18px; }
+  #sessionRestoreDialog p { margin: 0 0 18px; color: var(--muted); }
+  .session-restore-actions { display: grid; gap: 8px; }
+  .session-restore-actions button { min-height: 40px; text-align: left; }
 
   /* ---- left menu: narrow rail + drawer that expands beside it ---- */
   #side { display: flex; flex: none; background: #fff; border-right: 1px solid var(--line); z-index: 6; }

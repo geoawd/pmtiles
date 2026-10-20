@@ -6,6 +6,10 @@ This is a static browser application served over HTTP; it has no build step. `in
 
 On mobile, the tools drawer opens at 45% of the viewport height, can be dragged up to 80%, and closes when dragged down below 25%. Globe and print controls are hidden at mobile widths.
 
+## Session Recovery
+
+The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume**, **Start Over (with added layers)**, or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, COG display settings, and terrain settings. Manually added layers are stored separately per theme: Start Over keeps them, while Reset app clears them as well as the saved session. Both fresh-start choices clear filter state encoded in the URL hash. Nothing is sent to a server.
+
 ## Directory Layout
 
 - `config/config.js`: global `window.CONFIG` for map defaults, vector datasets, basemaps, raster overlays, themes, legend metadata, search, and terrain.

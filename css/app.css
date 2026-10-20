@@ -265,6 +265,7 @@
   .cog-ramp-mode-select { width: 100%; min-width: 0; padding: 3px 6px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
   .cog-ramp-error { color: #b71c1c; font-size: 11px; }
   .cog-ramp-error:empty { display: none; }
+  .cog-source-copy { justify-self: start; padding: 0; border: 0; background: none; color: #234b6b; text-align: left; text-decoration: underline; cursor: pointer; }
   .cog-ramp-legend { display: grid; gap: 3px; margin: 3px 0 7px 22px; font-size: 11px; }
   .cog-ramp-legend-title { margin-bottom: 2px; font-weight: 600; }
   .cog-ramp-legend-bar { height: 12px; border: 1px solid #65717a; border-radius: 2px; }

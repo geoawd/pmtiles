@@ -2501,8 +2501,10 @@ const COG_RAMP_COLORS = {
   ...COLORCET_RAMPS
 };
 const COG_DEFAULT_RAMP = 'CET rainbow4';
-const COG_QUANTILE_CLASS_COUNT = 64;
+const COG_QUANTILE_CLASS_COUNT = 256;
 const COG_RANGE_SAMPLE_SIZE = 256;
+const COG_PERCENTILE_MIN = 0.02;
+const COG_PERCENTILE_MAX = 0.98;
 const COG_HILLSHADE_DEFAULTS = {
   direction: 315,
   altitude: 45,
@@ -2565,6 +2567,22 @@ function cogQuantileBounds(values) {
   }
   bounds.push(sorted[sorted.length - 1]);
   return bounds;
+}
+function cogPercentileRange(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const percentile = fraction => {
+    const index = fraction * (sorted.length - 1);
+    const lowerIndex = Math.floor(index);
+    const upperIndex = Math.ceil(index);
+    return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * (index - lowerIndex);
+  };
+  const min = percentile(COG_PERCENTILE_MIN);
+  const max = percentile(COG_PERCENTILE_MAX);
+  if (!(min < max)) return null;
+  return { min, max };
+}
+function cogDisplayRange(state) {
+  return state.mode === 'percentile' ? state.percentileRange : { min: state.rangeMin, max: state.rangeMax };
 }
 function cogRampColorAt(colors, fraction) {
   const colorPosition = fraction * (colors.length - 1);
@@ -2635,6 +2653,7 @@ function removeCogColorLayers(w) {
 }
 function addCogColorLayers(w) {
   const state = w.cogState;
+  const range = cogDisplayRange(state);
   const colors = state.mode === 'quantile'
     ? cogQuantileRampColors(COG_RAMP_COLORS[state.ramp], state.quantileBounds)
     : COG_RAMP_COLORS[state.ramp];
@@ -2660,7 +2679,7 @@ function addCogColorLayers(w) {
     });
     setCogDerivedLayerSelected(w, id, state.visible);
   };
-  const sourceUrl = `cog://${state.url}#color=${JSON.stringify(colors)},${cogValueLabel(state.rangeMin)},${cogValueLabel(state.rangeMax)},c`;
+  const sourceUrl = `cog://${state.url}#color=${JSON.stringify(colors)},${cogValueLabel(range.min)},${cogValueLabel(range.max)},c`;
   addLayer(sourceUrl, 0);
 }
 function updateCogColorLayers(w) {
@@ -2713,6 +2732,7 @@ function createCogHillshade(w) {
 }
 function renderCogRampLegend(w, legend) {
   const state = w.cogState;
+  const range = cogDisplayRange(state);
   legend.replaceChildren();
   legend.hidden = !state.ramp;
   if (!state.ramp) return;
@@ -2725,9 +2745,9 @@ function renderCogRampLegend(w, legend) {
   const values = document.createElement('div');
   values.className = 'cog-ramp-legend-values';
   const min = document.createElement('span');
-  min.textContent = cogValueLabel(state.rangeMin);
+  min.textContent = cogValueLabel(range.min);
   const max = document.createElement('span');
-  max.textContent = cogValueLabel(state.rangeMax);
+  max.textContent = cogValueLabel(range.max);
   values.append(min, max);
   legend.append(title, bar, values);
 }
@@ -2746,6 +2766,7 @@ function initializeCogRampControls(w, panel, legend) {
     state.rangeMin = range.min;
     state.rangeMax = range.max;
     state.quantileBounds = cogQuantileBounds(range.values);
+    state.percentileRange = cogPercentileRange(range.values);
     status.textContent = `Range sampled from a ${COG_RANGE_SAMPLE_SIZE} × ${COG_RANGE_SAMPLE_SIZE} overview sample.`;
     const rampLabel = document.createElement('div');
     rampLabel.className = 'cog-ramp-picker-row';
@@ -2808,6 +2829,7 @@ function initializeCogRampControls(w, panel, legend) {
     modeSelect.className = 'cog-ramp-mode-select';
     modeSelect.add(new Option('Continuous', 'continuous'));
     modeSelect.add(new Option(`Quantile (${COG_QUANTILE_CLASS_COUNT} stops, smooth)`, 'quantile'));
+    modeSelect.add(new Option('Percentile clipped (2-98%)', 'percentile'));
     modeSelect.value = state.mode;
     modeLabel.appendChild(modeSelect);
     const error = document.createElement('div');
@@ -2878,10 +2900,27 @@ function initializeCogRampControls(w, panel, legend) {
     shadeStrength.append(strength, strengthValue);
     controls.appendChild(shadeStrength);
 
+    const copySource = document.createElement('button');
+    copySource.type = 'button';
+    copySource.className = 'cog-source-copy';
+    copySource.textContent = 'Click to copy source URL';
+    copySource.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('COG source URL copied');
+      } catch {
+        window.prompt('Copy this source URL', url);
+      }
+    };
+    controls.appendChild(copySource);
+
     modeSelect.onchange = () => {
       const previousMode = state.mode;
       state.mode = modeSelect.value;
       try {
+        if (state.mode === 'percentile' && !state.percentileRange) {
+          throw new Error('Values do not vary between the 2nd and 98th percentiles.');
+        }
         updateCogColorLayers(w);
         renderCogRampLegend(w, legend);
         error.textContent = '';
@@ -2960,6 +2999,7 @@ function addRasterLayer(w, beforeId) {
       rangeMin: null,
       rangeMax: null,
       quantileBounds: [],
+      percentileRange: null,
       mode: 'quantile',
       ramp: COG_DEFAULT_RAMP
     };

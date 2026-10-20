@@ -80,7 +80,7 @@ overlays: [
   cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif',
   tileSize: 256,
   opacity: 1,
-  visible: true
+  visible: false
 },
 
 ///////////////////////////////////////////////////////////////////////////
@@ -256,6 +256,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
   // Group-level information: key = group name exactly as shown in the legend (overlay `group`, or a vector legend group).
   // Same formats as layerInfo. Every layer in the group shows it unless the layer has its own entry in layerInfo (or `info`).
   groupInfo: {
+    'Tellus COG': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
     'Geophysics - Magnetics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
     'Geophysics - Electromagnetics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },
     'Geophysics - Radiometrics': { metadata: 'https://gsni-data.bgs.ac.uk/geonetwork/api/collections/main/items/43e0d940-c82e-40bb-abc0-a775158500b5?f=json' },

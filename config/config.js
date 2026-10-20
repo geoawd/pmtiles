@@ -84,6 +84,51 @@ overlays: [
   visible: false
 },
 
+{
+  id: 'Magnetics RTP',
+  name: 'Magnetics RTP',
+  group: 'Tellus COG',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - rtp_cog.tif',
+  legendunits: 'nT',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+{
+  id: 'Magnetics RTP Tilt Derivative',
+  name: 'Magnetics RTP Tilt Derivative',
+  group: 'Tellus COG',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - rtp - TiltD_cog.tif',
+  legendunits: 'nT',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+{
+  id: 'Magnetics Pseudo Gravity',
+  name: 'Magnetics Pseudo Gravity',
+  group: 'Tellus COG',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - psg_cog.tif',
+  legendunits: 'nT',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+{
+  id: 'Magnetics Pseudo Gravity Tilt Derivative',
+  name: 'Magnetics Pseudo Gravity Tilt Derivative',
+  group: 'Tellus COG',
+  cog: 'https://data.better-open-data.com/lidar_zstd/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES - psg - TiltD_cog.tif',
+  legendunits: 'nT',
+  tileSize: 256,
+  opacity: 1,
+  visible: false
+},
+
+
 ///////////////////////////////////////////////////////////////////////////
 //  10K Layers
 ///////////////////////////////////////////////////////////////////////////
@@ -305,9 +350,11 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
       layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
     { name: 'Geology WMS',
       overlays: ['10K_bedrock', '10K_superficial', '10K_linear', '10K_mass_movement', '10K_artificial','10K_landform', '250K_bedrock', '250K_superficial', '250K_linear','esri_world_imagery'] },
-    { name: 'Geophysics', 
+    { name: 'Geophysics WMS', 
       overlays: ['Magnetics Residual','Geophysics - Magnetics','Geophysics - Electromagnetics','Geophysics - Radiometrics', 'esri_world_imagery'] },
-    { name: 'Hydrogeology', 
+  { name: 'Geophysics', 
+      overlays: ['Tellus COG', 'esri_world_imagery'] },
+      { name: 'Hydrogeology', 
       overlays: ['Bedrock Aquifer', 'Groundwater Vulnerability', 'Superficial Aquifer', 'esri_world_imagery'] },
   ],
 

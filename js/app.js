@@ -2687,7 +2687,7 @@ function syncCogLayerMode(w) {
   const state = w.cogState;
   if (!state) return;
   const enabled = state.visible;
-  const rampActive = !!state.ramp;
+  const rampActive = !!state.ramp && state.colorLayerIds.length > 0;
   setCogDerivedLayerSelected(w, w.id, enabled && !rampActive);
   state.colorLayerIds.forEach(id => setCogDerivedLayerSelected(w, id, enabled && rampActive));
   if (state.hillshadeCreated) {
@@ -2819,7 +2819,11 @@ function initializeCogRampControls(w, panel, legend) {
   const setup = async () => {
     const metadata = await window.MaplibreCOGProtocol.getCogMetadata(url);
     if (metadata.bitsPerSample?.length !== 1) {
-      status.textContent = 'Color ramps and hillshade are available for single-band COGs only.';
+      state.ramp = '';
+      status.textContent = metadata.bitsPerSample?.length > 1
+        ? 'Multiband COGs are displayed as RGB; color ramps and hillshade are available for single-band COGs only.'
+        : 'Color ramps and hillshade are available for single-band COGs only.';
+      syncCogLayerMode(w);
       return;
     }
     const range = await sampleCogValueRange(url, metadata);

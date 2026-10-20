@@ -345,7 +345,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     themes: [
     { name: 'Site Investigations', 
       layers: ['Boreholes', 'Site_Reports'], //pmtiles
-      overlays: ['Magnetics Residual', 'esri_world_imagery', 'lot1_ortho_ni'] },
+      overlays: ['Tellus COG', 'esri_world_imagery', 'lot1_ortho_ni'] },
     { name: 'Geology',
       layers: ['10K_Bedrock', '10K_Superficial', '10K_Linear', '10K_Point_Data'] }, //pmtiles
     { name: 'Geology WMS',

@@ -2519,6 +2519,7 @@ const COG_PERCENTILE_MIN = 0.02;
 const COG_PERCENTILE_MAX = 0.98;
 const COG_HILLSHADE_TARGET_RANGE = 100;
 const COG_HILLSHADE_MAX_VERTICAL_SCALE = 1000;
+const COG_HILLSHADE_SLIDER_MAX = 100;
 const COG_HILLSHADE_DEFAULTS = {
   direction: 315,
   altitude: 45,
@@ -2551,6 +2552,14 @@ async function scaleCogDemTile(bitmap, scale, center) {
 }
 function cogValueLabel(value) {
   return Number(value.toPrecision(7)).toString();
+}
+function cogHillshadeSliderValue(scale) {
+  return Math.round(1 + Math.log10(scale) / Math.log10(COG_HILLSHADE_MAX_VERTICAL_SCALE) *
+    (COG_HILLSHADE_SLIDER_MAX - 1));
+}
+function cogHillshadeScaleFromSlider(value) {
+  return Math.round(10 ** ((value - 1) / (COG_HILLSHADE_SLIDER_MAX - 1) *
+    Math.log10(COG_HILLSHADE_MAX_VERTICAL_SCALE)));
 }
 function cogSampleCoordinates(bbox) {
   const [west, south, east, north] = bbox;
@@ -2957,11 +2966,9 @@ function initializeCogRampControls(w, panel, legend) {
     const reliefScale = document.createElement('input');
     reliefScale.type = 'range';
     reliefScale.min = '1';
-    reliefScale.max = String(COG_HILLSHADE_MAX_VERTICAL_SCALE);
-    reliefScale.value = String(state.hillshadeVerticalScale);
-    const reliefScaleValue = document.createElement('output');
-    reliefScaleValue.textContent = `${reliefScale.value}×`;
-    reliefScaleLabel.append(reliefScale, reliefScaleValue);
+    reliefScale.max = String(COG_HILLSHADE_SLIDER_MAX);
+    reliefScale.value = String(cogHillshadeSliderValue(state.hillshadeVerticalScale));
+    reliefScaleLabel.appendChild(reliefScale);
     controls.appendChild(reliefScaleLabel);
 
     const copySource = document.createElement('button');
@@ -3016,11 +3023,8 @@ function initializeCogRampControls(w, panel, legend) {
         map.setPaintProperty(state.hillshadeLayerId, 'hillshade-exaggeration', effectiveCogHillshadeStrength(state));
       }
     };
-    reliefScale.oninput = () => {
-      reliefScaleValue.textContent = `${reliefScale.value}×`;
-    };
     reliefScale.onchange = () => {
-      state.hillshadeVerticalScale = Number(reliefScale.value);
+      state.hillshadeVerticalScale = cogHillshadeScaleFromSlider(Number(reliefScale.value));
       try {
         refreshCogHillshade(w);
         error.textContent = '';

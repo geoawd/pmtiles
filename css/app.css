@@ -252,8 +252,7 @@
   .cog-ramp-controls { display: grid; gap: 7px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
   #legend .cog-ramp-controls .cog-hillshade-strength,
   #legend .cog-ramp-controls .cog-hillshade-scale { display: grid; grid-template-columns: minmax(0, 1fr) minmax(70px, 1.4fr) 38px; align-items: center; gap: 8px; }
-  .cog-ramp-controls .cog-hillshade-strength output,
-  .cog-hillshade-scale output { width: 38px; color: var(--muted); font-size: 11px; text-align: right; }
+  .cog-ramp-controls .cog-hillshade-strength output { width: 38px; color: var(--muted); font-size: 11px; text-align: right; }
   .cog-ramp-status { color: var(--muted); font-size: 11px; }
   .cog-ramp-picker-row, .cog-ramp-mode-row { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 8px; }
   .cog-ramp-picker { position: relative; min-width: 0; }

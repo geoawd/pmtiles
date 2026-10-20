@@ -2264,6 +2264,7 @@ function buildLegend() {
       const gl = document.createElement('div');
       gl.dataset.sl = sl;
       gl.dataset.orderKey = `layer:${sl}`;
+      gl.classList.toggle('legend-off', !initialOn);
       gl.draggable = true;
       gl.title = `Drag to reorder ${sl.replace(/_/g, ' ')}`;
       const gchk = document.createElement('label');
@@ -2305,6 +2306,7 @@ function buildLegend() {
       const classIds = [...new Set(clsEntries.flatMap(en => en.ids))];
       const setAll = on => {
         gcb.checked = on;
+        gl.classList.toggle('legend-off', !on);
         boxes.forEach(b => { b.cb.checked = on; applyEntry(b.en, on); });
         if (!toggleClasses) setVis(classIds, on);
       };
@@ -3597,6 +3599,7 @@ function buildOverlayLegend() {
       const transp = 100 - Math.round((w.opacity ?? 1) * 100);
       const d = document.createElement('div');
       d.dataset.orderKey = `overlay:${w.id}`;
+      d.classList.toggle('legend-off', w.visible !== true);
       d.draggable = true;
       d.title = `Drag to reorder ${w.name || w.id}`;
       d.innerHTML = `<div class="grprow"><label class="lname"><input type="checkbox"${w.visible === true ? ' checked' : ''}> <span>${esc(w.name || w.id)}</span></label></div>`;
@@ -3604,6 +3607,7 @@ function buildOverlayLegend() {
       const layerIds = w.layerIds || [w.id];
       const setOverlayVisibility = on => {
         cb.checked = on;
+        d.classList.toggle('legend-off', !on);
         if (w.contours) contoursVisible = cb.checked;
         if (w.hillshade && on) addHillshadeLayer(activeTerrainModel, terrainLayerBeforeId, false);
         if (w.cogState) {

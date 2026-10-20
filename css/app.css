@@ -193,6 +193,8 @@
   .arcgis-legend-entry { display: flex; align-items: center; gap: 6px; min-height: 20px; }
   .arcgis-legend-entry img { max-width: 42px; max-height: 24px; object-fit: contain; flex: none; }
   .arcgis-legend-entry span { min-width: 0; overflow-wrap: anywhere; }
+  #legend .legend-off > .ent, #legend .legend-off > img, #legend .legend-off > .arcgis-legend, #legend .legend-off > .cog-ramp-legend,
+  #legend .json-theme-legend.group-hidden .json-legend-row { display: none; }
   #legend .arcgis-legend-entry.nv { display: none; }
   .arcgis-legend-empty { font-style: italic; }
   .arcgis-legend-note { margin-top: 4px; color: var(--muted); font-style: italic; }

@@ -1,10 +1,11 @@
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const test = require('node:test');
-const vm = require('node:vm');
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(__dirname, '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.join(root, 'config/config.js');
 const configWindow = {};
 vm.runInNewContext(fs.readFileSync(configPath, 'utf8'), { window: configWindow }, {
@@ -57,6 +58,48 @@ test('configured datasets, basemaps, overlays, and terrain models have unique ID
   }
 });
 
+test('configured raster and tile sources have valid source settings', () => {
+  for (const basemap of config.basemaps) {
+    assert.equal(typeof basemap.tiles, 'string', `basemap "${basemap.id}" must define tiles`);
+    assert.ok(basemap.tiles.startsWith('https://'), `basemap "${basemap.id}" must use HTTPS`);
+  }
+
+  for (const overlay of config.overlays) {
+    const sourceFields = ['cog', 'tiles', 'url', 'geojson'].filter(field => overlay[field] !== undefined);
+    assert.equal(sourceFields.length, 1, `overlay "${overlay.id}" must define exactly one source`);
+    assert.equal(typeof overlay[sourceFields[0]], 'string',
+      `overlay "${overlay.id}" source must be a string`);
+    if (sourceFields[0] !== 'geojson') {
+      assert.ok(overlay[sourceFields[0]].length > 0, `overlay "${overlay.id}" source must not be empty`);
+    }
+
+    if (overlay.opacity !== undefined) {
+      assert.ok(Number.isFinite(overlay.opacity) && overlay.opacity >= 0 && overlay.opacity <= 1,
+        `overlay "${overlay.id}" opacity must be between 0 and 1`);
+    }
+    if (overlay.visible !== undefined) {
+      assert.equal(typeof overlay.visible, 'boolean', `overlay "${overlay.id}" visible must be boolean`);
+    }
+    if (overlay.tileSize !== undefined) {
+      assert.ok(Number.isInteger(overlay.tileSize) && overlay.tileSize > 0,
+        `overlay "${overlay.id}" tileSize must be a positive integer`);
+    }
+    if (overlay.minzoom !== undefined && overlay.maxzoom !== undefined) {
+      assert.ok(overlay.minzoom <= overlay.maxzoom,
+        `overlay "${overlay.id}" minzoom must not exceed maxzoom`);
+    }
+  }
+
+  for (const model of config.terrain?.models || []) {
+    assert.equal(typeof model.cog, 'string', `terrain model "${model.id}" must define a COG`);
+    assert.ok(model.cog.length > 0, `terrain model "${model.id}" COG must not be empty`);
+    if (model.tileSize !== undefined) {
+      assert.ok(Number.isInteger(model.tileSize) && model.tileSize > 0,
+        `terrain model "${model.id}" tileSize must be a positive integer`);
+    }
+  }
+});
+
 test('local styles and their sources are valid and available', () => {
   const stylePaths = [config.styleUrl, ...config.datasets.map(dataset => dataset.style)];
   const styles = stylePaths.map(stylePath => ({ path: stylePath, style: readStyle(stylePath) }));
@@ -101,15 +144,20 @@ test('local styles and their sources are valid and available', () => {
 });
 
 test('themes and named groups reference configured layers, datasets, and overlays', () => {
-  const styles = [config.styleUrl, ...config.datasets.map(dataset => dataset.style)]
+  const activeStylePaths = config.datasets.length
+    ? config.datasets.map(dataset => dataset.style || config.styleUrl)
+    : [config.styleUrl];
+  const activeStyles = activeStylePaths.map(readStyle);
+  const allStyles = [config.styleUrl, ...config.datasets.map(dataset => dataset.style)]
+    .filter(Boolean)
     .map(readStyle);
-  const vectorLayers = new Set(styles.flatMap(style =>
+  const vectorLayers = new Set(activeStyles.flatMap(style =>
     style.layers.map(layer => layer['source-layer']).filter(Boolean)
   ));
   const datasetIds = new Set(config.datasets.map(dataset => dataset.id));
   const overlayIds = new Set(config.overlays.map(overlay => overlay.id));
   const overlayGroups = new Set(config.overlays.map(overlay => overlay.group).filter(Boolean));
-  const styleGroups = new Set(styles.flatMap(style =>
+  const styleGroups = new Set(allStyles.flatMap(style =>
     (style.metadata?.['mapsplat:legend-groups'] || []).map(group => group.name)
   ));
   const themeNames = new Set(config.themes.map(theme => theme.name));
@@ -138,5 +186,17 @@ test('themes and named groups reference configured layers, datasets, and overlay
     assertReferencesExist(group.datasets, datasetIds, `group "${name}" datasets`);
     assertReferencesExist(group.overlays, overlayIds, `group "${name}" overlays`);
     assertReferencesExist(group.groups, knownGroupNames, `group "${name}" groups`);
+  }
+
+  for (const layerName of Object.keys(config.layerInfo || {})) {
+    assert.ok(vectorLayers.has(layerName) || overlayIds.has(layerName),
+      `layerInfo references unknown layer or overlay "${layerName}"`);
+  }
+  for (const groupName of Object.keys(config.groupInfo || {})) {
+    assert.ok(knownGroupNames.has(groupName),
+      `groupInfo references unknown group "${groupName}"`);
+  }
+  for (const layerName of Object.keys(config.dataLinks || {})) {
+    assert.ok(vectorLayers.has(layerName), `dataLinks references unknown vector layer "${layerName}"`);
   }
 });

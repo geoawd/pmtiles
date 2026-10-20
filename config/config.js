@@ -17,7 +17,7 @@ window.CONFIG = {
 ///////////////////////////////////////////////////////////////////////////
 
   datasets: [
-    { id: 'bores', name: 'Site Investigations', style: 'config/layers.json', pmtiles: 'data/layers.pmtiles' }
+    { id: 'bores', name: 'Site Investigations', style: 'config/style.json', pmtiles: 'data/layers.pmtiles' }
   ],
   styleUrl: 'config/style.json',
 

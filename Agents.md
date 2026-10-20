@@ -36,4 +36,4 @@ The server opens the app in a browser on port 8000 by default. Use `python3 serv
 
 ## Development and validation
 
-Run the configuration checks with `npm test` (Node.js 18 or later; no dependencies need to be installed). Keep changes compatible with the existing plain JavaScript modules and browser-loaded scripts. For runtime changes, start the local server and smoke-test the affected theme and map interactions in a browser; check the browser console and network requests for load or configuration errors.
+Run the configuration, JSON-theme runtime, and browser-startup checks with `npm test` (Node.js 18 or later; no dependencies need to be installed). Run the browser-based Site Investigations and Tellus Geophysics checks with `npx playwright install chromium` once, then `npm run test:e2e`. The browser test command starts and stops its own local server. Keep changes compatible with the existing plain JavaScript modules and browser-loaded scripts; check the browser console and network requests for load or configuration errors when manually smoke-testing other runtime changes.

@@ -3,3 +3,6 @@
 !data/layers.pmtiles
 .DS_Store
 notes.md
+node_modules/
+playwright-report/
+test-results/

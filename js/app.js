@@ -971,6 +971,11 @@ function setupThemes() {
 function renderAddDataPicker() {
   const list = $('addDataList');
   list.replaceChildren();
+  const search = $('addDataSearch');
+  search.value = '';
+  search.disabled = true;
+  search.oninput = () => filterAddDataPicker(true);
+  $('addDataApply').disabled = true;
   if (!activeThemeName) return;
   if (activeThemeAll) {
     const message = document.createElement('p');
@@ -1000,17 +1005,19 @@ function renderAddDataPicker() {
     $('addDataApply').disabled = true;
     return;
   }
+  search.disabled = false;
   [...groups].sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' })).forEach(([name, items]) => {
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'add-data-group';
+    fieldset.dataset.groupName = name;
     const legend = document.createElement('legend');
     legend.className = 'add-data-group-head';
     const collapse = document.createElement('button');
     collapse.type = 'button';
     collapse.className = 'add-data-collapse';
-    collapse.setAttribute('aria-expanded', 'true');
-    collapse.setAttribute('aria-label', `Collapse ${name}`);
-    collapse.title = `Collapse ${name}`;
+    collapse.setAttribute('aria-expanded', 'false');
+    collapse.setAttribute('aria-label', `Expand ${name}`);
+    collapse.title = `Expand ${name}`;
     collapse.innerHTML = ICON_CHEV;
     const groupLabel = document.createElement('label');
     const groupInput = document.createElement('input');
@@ -1023,9 +1030,12 @@ function renderAddDataPicker() {
     fieldset.appendChild(legend);
     const itemList = document.createElement('div');
     itemList.className = 'add-data-items';
+    itemList.hidden = true;
+    fieldset.classList.add('collapsed');
     const itemInputs = [];
     items.forEach(item => {
       const label = document.createElement('label');
+      label.dataset.itemName = item.label;
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.dataset.kind = item.kind;
@@ -1046,18 +1056,57 @@ function renderAddDataPicker() {
       itemList.hidden = !expanded;
     };
     const updateGroup = () => {
-      const selected = itemInputs.filter(input => input.checked).length;
-      groupInput.checked = selected === itemInputs.length;
-      groupInput.indeterminate = selected > 0 && selected < itemInputs.length;
-      $('addDataApply').disabled = !list.querySelector('input[data-kind]:checked');
+      filterAddDataPicker();
     };
     groupInput.onchange = () => {
-      itemInputs.forEach(input => { input.checked = groupInput.checked; });
+      itemInputs.filter(input => !input.closest('label').hidden)
+        .forEach(input => { input.checked = groupInput.checked; });
       updateGroup();
     };
     itemInputs.forEach(input => input.onchange = updateGroup);
     list.appendChild(fieldset);
   });
+  const noResults = document.createElement('p');
+  noResults.className = 'hint add-data-no-results';
+  noResults.textContent = 'No matching groups or layers.';
+  noResults.hidden = true;
+  list.appendChild(noResults);
+  filterAddDataPicker(true);
+}
+function filterAddDataPicker(resetExpansion = false) {
+  const list = $('addDataList');
+  const query = $('addDataSearch').value.trim().toLowerCase();
+  let visibleGroups = 0;
+  list.querySelectorAll('.add-data-group').forEach(fieldset => {
+    const groupMatches = !!query && fieldset.dataset.groupName.toLowerCase().includes(query);
+    const labels = [...fieldset.querySelectorAll('.add-data-items > label')];
+    let matchingItems = 0, selectedItems = 0;
+    labels.forEach(label => {
+      const matches = !query || groupMatches || label.dataset.itemName.toLowerCase().includes(query);
+      label.hidden = !matches;
+      if (matches) {
+        matchingItems++;
+        if (label.querySelector('input').checked) selectedItems++;
+      }
+    });
+    const visible = !query || groupMatches || matchingItems > 0;
+    fieldset.hidden = !visible;
+    if (visible) visibleGroups++;
+    const expanded = resetExpansion ? !!query && visible : visible && !fieldset.classList.contains('collapsed');
+    fieldset.classList.toggle('collapsed', !expanded);
+    const items = fieldset.querySelector('.add-data-items');
+    items.hidden = !expanded;
+    const collapse = fieldset.querySelector('.add-data-collapse');
+    collapse.setAttribute('aria-expanded', String(expanded));
+    collapse.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} ${fieldset.dataset.groupName}`);
+    collapse.title = `${expanded ? 'Collapse' : 'Expand'} ${fieldset.dataset.groupName}`;
+    const groupInput = fieldset.querySelector('input[data-group-check]');
+    groupInput.checked = matchingItems > 0 && selectedItems === matchingItems;
+    groupInput.indeterminate = selectedItems > 0 && selectedItems < matchingItems;
+  });
+  const noResults = list.querySelector('.add-data-no-results');
+  if (noResults) noResults.hidden = !query || visibleGroups > 0;
+  $('addDataApply').disabled = !list.querySelector('input[data-kind]:checked');
 }
 function closeAddDataPanel() {
   $('addDataPanel').hidden = true;

@@ -151,6 +151,8 @@
   #addDataPanel[hidden] { display: none; }
   .add-data-head, .add-data-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
   .add-data-head button { width: 30px; height: 30px; padding: 0; border: 0; background: transparent; font-size: 20px; }
+  .add-data-search { padding: 8px 12px 0; }
+  #addDataSearch { box-sizing: border-box; width: 100%; min-height: 34px; padding: 6px 9px; border: 1px solid #8a949e; border-radius: 5px; font: inherit; }
   #addDataList { flex: 1; min-height: 0; overflow: auto; padding: 4px 12px; }
   #addDataList fieldset { margin: 0 0 8px; padding: 0; border: 0; }
   #addDataList legend.add-data-group-head { display: flex; align-items: center; gap: 4px; width: 100%; margin: 0; padding: 0 4px 0 0; border-radius: 5px; background: var(--rail-bg); color: #fff; font-weight: 600; }

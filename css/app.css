@@ -21,6 +21,7 @@
   #rail .gap { flex: 1; }
   #drawer { width: 0; overflow: hidden; transition: width .18s ease; }
   body.drawer-open #drawer { width: var(--drawer); }
+  #drawerDragHandle { display: none; }
   .dpage { display: none; width: var(--drawer); height: 100%; flex-direction: column; }
   .dpage.active { display: flex; }
   .dhead { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 14px; }
@@ -361,9 +362,14 @@
     #rail { width: auto; height: 52px; flex-direction: row; justify-content: space-around; padding: 4px 0 env(safe-area-inset-bottom, 0); height: calc(52px + env(safe-area-inset-bottom, 0)); }
     #rail .gap { display: none; }
     #rail button { width: 48px; height: 44px; }
-    #drawer { width: auto; height: 0; transition: height .18s ease; }
-    body.drawer-open #drawer { width: auto; height: 45dvh; }
-    .dpage { width: auto; }
+    #rail #globeBtn, #rail #printBtn { display: none; }
+    #drawer { display: flex; flex-direction: column; width: auto; height: 0; max-height: 80dvh; transition: height .18s ease; }
+    body.drawer-open #drawer { width: auto; height: min(var(--mobile-drawer-height, 45dvh), 80dvh); }
+    #drawerDragHandle { display: grid; place-items: center; width: 100%; height: 22px; min-height: 22px; flex: none; border: 0; border-radius: 0; background: #fff; cursor: ns-resize; touch-action: none; user-select: none; }
+    #drawerDragHandle::after { content: ''; width: 42px; height: 4px; border-radius: 2px; background: #89959b; }
+    #drawerDragHandle:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; }
+    #drawerDragHandle.dragging { background: #e5e9eb; }
+    .dpage.active { width: auto; height: auto; flex: 1; min-height: 0; }
     #panel { height: 35vh; }
     body.drawer-open #panel { display: none; }   /* keeps the map usable while the menu is open */
     body.drawer-open #panelSplitter { display: none; }

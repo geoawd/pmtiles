@@ -4,6 +4,8 @@
 
 This is a static browser application served over HTTP; it has no build step. `index.html` loads the vendor libraries, then `config/config_geomaterials.js` and `config/config.js`, then `js/styles.js`. The style loader fetches configured MapLibre styles, merges their vector sources/layers, and starts `js/app.js` as a module. `js/app.js` owns the map, layer controls, theme switching, search, popups, and results panels.
 
+On mobile, the tools drawer opens at 45% of the viewport height, can be dragged up to 80%, and closes when dragged down below 25%. Globe and print controls are hidden at mobile widths.
+
 ## Directory Layout
 
 - `config/config.js`: global `window.CONFIG` for map defaults, vector datasets, basemaps, raster overlays, themes, legend metadata, search, and terrain.

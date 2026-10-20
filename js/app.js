@@ -143,6 +143,10 @@ function loadThirdPartyNotices() {
 function openTool(name) {
   tool = name === tool ? null : name;
   document.body.classList.toggle('drawer-open', !!tool);
+  if (!tool) {
+    $('drawer').style.removeProperty('--mobile-drawer-height');
+    $('drawerDragHandle').setAttribute('aria-valuenow', '45');
+  }
   document.querySelectorAll('#rail [data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   $('legendPage').classList.toggle('active', tool === 'legend');
   $('searchPage').classList.toggle('active', tool === 'search');
@@ -152,6 +156,62 @@ function openTool(name) {
   if (tool && boxMode) setBox(false);
   syncAddDataButton();
 }
+const drawerDragHandle = $('drawerDragHandle');
+let drawerDrag = null;
+function setMobileDrawerHeight(height) {
+  const maxHeight = window.innerHeight * 0.8;
+  const clampedHeight = Math.max(0, Math.min(maxHeight, height));
+  const heightPercent = clampedHeight / window.innerHeight * 100;
+  $('drawer').style.setProperty('--mobile-drawer-height', `${heightPercent}dvh`);
+  drawerDragHandle.setAttribute('aria-valuenow', String(Math.round(heightPercent)));
+}
+function finishMobileDrawerDrag() {
+  if (!drawerDrag) return;
+  const height = $('drawer').getBoundingClientRect().height;
+  drawerDrag = null;
+  $('drawer').style.removeProperty('transition');
+  drawerDragHandle.classList.remove('dragging');
+  if (height < window.innerHeight * 0.25) {
+    $('drawer').style.removeProperty('--mobile-drawer-height');
+    if (tool) openTool(tool);
+  } else {
+    setMobileDrawerHeight(height > window.innerHeight * 0.6 ? window.innerHeight * 0.8 : window.innerHeight * 0.45);
+  }
+}
+drawerDragHandle.addEventListener('pointerdown', event => {
+  if (!isMobile() || !tool) return;
+  event.preventDefault();
+  drawerDrag = { pointerId: event.pointerId, startY: event.clientY, startHeight: $('drawer').getBoundingClientRect().height };
+  drawerDragHandle.classList.add('dragging');
+  $('drawer').style.transition = 'none';
+  drawerDragHandle.setPointerCapture(event.pointerId);
+});
+drawerDragHandle.addEventListener('pointermove', event => {
+  if (!drawerDrag || event.pointerId !== drawerDrag.pointerId) return;
+  setMobileDrawerHeight(drawerDrag.startHeight + drawerDrag.startY - event.clientY);
+});
+drawerDragHandle.addEventListener('pointerup', event => {
+  if (drawerDrag?.pointerId === event.pointerId) finishMobileDrawerDrag();
+});
+drawerDragHandle.addEventListener('pointercancel', event => {
+  if (drawerDrag?.pointerId === event.pointerId) finishMobileDrawerDrag();
+});
+drawerDragHandle.addEventListener('keydown', event => {
+  if (!isMobile() || !tool) return;
+  const height = $('drawer').getBoundingClientRect().height;
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    const nextHeight = height + (event.key === 'ArrowUp' ? 1 : -1) * window.innerHeight * 0.1;
+    if (nextHeight < window.innerHeight * 0.25 && event.key === 'ArrowDown') openTool(tool);
+    else setMobileDrawerHeight(nextHeight);
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    setMobileDrawerHeight(window.innerHeight * 0.45);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    setMobileDrawerHeight(window.innerHeight * 0.8);
+  }
+});
 function syncAddDataButton() {
   const button = $('addDataBtn');
   if (!button) return;

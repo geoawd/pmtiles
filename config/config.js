@@ -3,7 +3,7 @@
 ///////////////////////////////////////////////////////////////////////////
 
 window.CONFIG = {
-  title: 'MAPLIBRE DEMO',
+  title: 'Geoscience Data Viewer',
   showZoom: true, // development helper: show the current zoom level beside the grid reference; set to false for production
 
 ///////////////////////////////////////////////////////////////////////////
@@ -668,7 +668,7 @@ attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Commun
     hillshadeVisible: true,    // start with the hillshade switched on?
     hillshadeStrength: 0.6,    // 0-1, shading strength at 0% transparency
     hillshadeStyle: {
-      method: 'standard', direction: 315, altitude: 45, anchor: 'map',
+      method: 'combined', direction: 315, altitude: 45, anchor: 'map',
       shadowColor: '#000000', highlightColor: '#ffffff', accentColor: '#000000'
     },
     contours: {

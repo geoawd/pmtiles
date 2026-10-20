@@ -250,6 +250,7 @@
   #legend .hillshade-colors label { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; color: var(--muted); font-size: 11px; cursor: default; }
   .hillshade-colors input[type=color] { width: 100%; height: 27px; min-width: 0; padding: 2px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
   .cog-ramp-controls { display: grid; gap: 7px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .cog-hillshade-scale output { width: 38px; color: var(--muted); font-size: 11px; text-align: right; }
   .cog-ramp-status { color: var(--muted); font-size: 11px; }
   .cog-ramp-picker-row, .cog-ramp-mode-row { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 8px; }
   .cog-ramp-picker { position: relative; min-width: 0; }

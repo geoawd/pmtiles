@@ -8,7 +8,19 @@ proj4.defs('EPSG:29902',
   '+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 ' +
   '+ellps=mod_airy +towgs84=482.5,-130.6,564.6,-1.042,-0.214,-0.631,8.15 +units=m +no_defs');
 maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
-if (window.MaplibreCOGProtocol) maplibregl.addProtocol('cog', MaplibreCOGProtocol.cogProtocol);
+if (window.MaplibreCOGProtocol) {
+  const cogProtocol = window.MaplibreCOGProtocol.cogProtocol;
+  maplibregl.addProtocol('cog', async request => {
+    const match = request.url.match(/#dem&reliefScale=([^&/]+)&reliefCenter=([^/]+)(?=\/\d+\/\d+\/\d+$)/);
+    if (!match || request.type !== 'image') return cogProtocol(request);
+    const scale = Number(match[1]), center = Number(match[2]);
+    if (!Number.isFinite(scale) || scale < 1 || !Number.isFinite(center)) {
+      throw new Error('Invalid COG hillshade relief scaling.');
+    }
+    const response = await cogProtocol({ ...request, url: request.url.replace(match[0], '#dem') });
+    return { ...response, data: await scaleCogDemTile(response.data, scale, center) };
+  });
+}
 const $ = id => document.getElementById(id);
 const map = new maplibregl.Map({ container: 'map', style: window.MAP_STYLE || CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
 document.querySelectorAll('#aboutPage .lgcollapse').forEach(b => b.onclick = () => {
@@ -2505,6 +2517,8 @@ const COG_QUANTILE_CLASS_COUNT = 256;
 const COG_RANGE_SAMPLE_SIZE = 256;
 const COG_PERCENTILE_MIN = 0.02;
 const COG_PERCENTILE_MAX = 0.98;
+const COG_HILLSHADE_TARGET_RANGE = 100;
+const COG_HILLSHADE_MAX_VERTICAL_SCALE = 1000;
 const COG_HILLSHADE_DEFAULTS = {
   direction: 315,
   altitude: 45,
@@ -2513,6 +2527,28 @@ const COG_HILLSHADE_DEFAULTS = {
   highlightColor: '#ffffff',
   accentColor: '#000000'
 };
+async function scaleCogDemTile(bitmap, scale, center) {
+  const canvas = typeof OffscreenCanvas === 'function'
+    ? new OffscreenCanvas(bitmap.width, bitmap.height)
+    : Object.assign(document.createElement('canvas'), { width: bitmap.width, height: bitmap.height });
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('Could not process a COG hillshade tile.');
+  context.drawImage(bitmap, 0, 0);
+  const image = context.getImageData(0, 0, bitmap.width, bitmap.height);
+  bitmap.close?.();
+  for (let index = 0; index < image.data.length; index += 4) {
+    if (!image.data[index + 3]) continue;
+    const encoded = image.data[index] * 65536 + image.data[index + 1] * 256 + image.data[index + 2];
+    const elevation = encoded * 0.1 - 10000;
+    const scaled = Math.max(0, Math.min(0xffffff,
+      Math.round((center + (elevation - center) * scale + 10000) * 10)));
+    image.data[index] = scaled >> 16;
+    image.data[index + 1] = scaled >> 8 & 255;
+    image.data[index + 2] = scaled & 255;
+  }
+  context.putImageData(image, 0, 0);
+  return createImageBitmap(image);
+}
 function cogValueLabel(value) {
   return Number(value.toPrecision(7)).toString();
 }
@@ -2615,6 +2651,15 @@ function cogQuantileRampColors(colors, bounds) {
 function effectiveCogHillshadeStrength(state) {
   return state.hillshadeStrength * state.opacity;
 }
+function refreshCogHillshade(w) {
+  const state = w.cogState;
+  if (!state.hillshadeCreated) return;
+  map.removeLayer(state.hillshadeLayerId);
+  map.removeSource(state.hillshadeSourceId);
+  state.hillshadeCreated = false;
+  createCogHillshade(w);
+  syncCogLayerMode(w);
+}
 function setCogDerivedLayerSelected(w, id, selected) {
   const layerState = layerVisibility.get(id);
   const baseState = layerVisibility.get(w.id);
@@ -2706,7 +2751,7 @@ function createCogHillshade(w) {
   if (state.hillshadeCreated) return;
   map.addSource(state.hillshadeSourceId, {
     type: 'raster-dem',
-    url: `cog://${state.url}#dem`,
+    url: `cog://${state.url}#dem&reliefScale=${state.hillshadeVerticalScale}&reliefCenter=${state.hillshadeVerticalCenter}`,
     tileSize: w.tileSize || 256,
     ...(Number.isFinite(w.maxzoom) ? { maxzoom: w.maxzoom } : {})
   });
@@ -2769,6 +2814,9 @@ function initializeCogRampControls(w, panel, legend) {
     const range = await sampleCogValueRange(url, metadata);
     state.rangeMin = range.min;
     state.rangeMax = range.max;
+    state.hillshadeVerticalCenter = range.min + (range.max - range.min) / 2;
+    state.hillshadeVerticalScale = Math.max(1, Math.min(COG_HILLSHADE_MAX_VERTICAL_SCALE,
+      Math.round(COG_HILLSHADE_TARGET_RANGE / (range.max - range.min))));
     state.quantileBounds = cogQuantileBounds(range.values);
     state.percentileRange = cogPercentileRange(range.values);
     status.textContent = `Range sampled from a ${COG_RANGE_SAMPLE_SIZE} × ${COG_RANGE_SAMPLE_SIZE} overview sample.`;
@@ -2903,6 +2951,18 @@ function initializeCogRampControls(w, panel, legend) {
     strengthValue.textContent = `${strength.value}%`;
     shadeStrength.append(strength, strengthValue);
     controls.appendChild(shadeStrength);
+    const reliefScaleLabel = document.createElement('label');
+    reliefScaleLabel.className = 'trow cog-hillshade-scale';
+    reliefScaleLabel.append('Relief exaggeration ');
+    const reliefScale = document.createElement('input');
+    reliefScale.type = 'range';
+    reliefScale.min = '1';
+    reliefScale.max = String(COG_HILLSHADE_MAX_VERTICAL_SCALE);
+    reliefScale.value = String(state.hillshadeVerticalScale);
+    const reliefScaleValue = document.createElement('output');
+    reliefScaleValue.textContent = `${reliefScale.value}×`;
+    reliefScaleLabel.append(reliefScale, reliefScaleValue);
+    controls.appendChild(reliefScaleLabel);
 
     const copySource = document.createElement('button');
     copySource.type = 'button';
@@ -2956,6 +3016,22 @@ function initializeCogRampControls(w, panel, legend) {
         map.setPaintProperty(state.hillshadeLayerId, 'hillshade-exaggeration', effectiveCogHillshadeStrength(state));
       }
     };
+    reliefScale.oninput = () => {
+      reliefScaleValue.textContent = `${reliefScale.value}×`;
+    };
+    reliefScale.onchange = () => {
+      state.hillshadeVerticalScale = Number(reliefScale.value);
+      try {
+        refreshCogHillshade(w);
+        error.textContent = '';
+      } catch (cause) {
+        state.hillshadeEnabled = false;
+        shadeToggle.checked = false;
+        const message = `Could not adjust the hillshade for ${w.name || w.id}: ${cause.message}`;
+        error.textContent = message;
+        toast(message);
+      }
+    };
     updateRampPicker();
     try {
       updateCogColorLayers(w);
@@ -2998,6 +3074,8 @@ function addRasterLayer(w, beforeId) {
       hillshadeCreated: false,
       hillshadeEnabled: true,
       hillshadeStrength: COG_HILLSHADE_DEFAULTS.strength,
+      hillshadeVerticalScale: 1,
+      hillshadeVerticalCenter: 0,
       visible: w.visible === true,
       opacity: w.opacity ?? 1,
       legendUnits: typeof w.legendunits === 'string' ? w.legendunits : '',

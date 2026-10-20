@@ -2,17 +2,19 @@
 
 ## Runtime
 
-This is a static browser application served over HTTP; it has no build step. `index.html` loads the vendor libraries, then `config/config_geomaterials.js` and `config/config.js`, then `js/styles.js`. The style loader fetches configured MapLibre styles, merges their vector sources/layers, and starts `js/app.js` as a module. `js/app.js` owns the map, layer controls, theme switching, search, popups, and results panels.
+This is a static browser application served over HTTP; it has no build step. `index.html` loads the vendor libraries and `js/config-loader.js`. The config loader selects a profile, loads its `window.CONFIG`, and then starts `js/styles.js`. The style loader fetches configured MapLibre styles, merges their vector sources/layers, and starts `js/app.js` as a module. `js/app.js` owns the map, layer controls, theme switching, search, popups, and results panels.
 
 On mobile, the tools drawer opens at 45% of the viewport height, can be dragged up to 80%, and closes when dragged down below 25%. Globe and print controls are hidden at mobile widths.
 
 ## Session Recovery
 
-The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume**, **Start Over (with added layers)**, or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, COG display settings, and terrain settings. Manually added layers are stored separately per theme: Start Over keeps them, while Reset app clears them as well as the saved session. Both fresh-start choices clear filter state encoded in the URL hash. Nothing is sent to a server.
+The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume**, **Start Over (with added layers)**, or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, COG display settings, and terrain settings. Manually added layers are stored separately per theme: Start Over keeps them, while Reset app clears them as well as the saved session. Both fresh-start choices clear filter state encoded in the URL hash. Internal profile state uses separate storage keys; the public profile retains its existing keys. Nothing is sent to a server.
 
 ## Directory Layout
 
-- `config/config.js`: global `window.CONFIG` for map defaults, vector datasets, basemaps, raster overlays, themes, legend metadata, search, and terrain.
+- `config/config.js`: public profile's `window.CONFIG` for map defaults, vector datasets, basemaps, raster overlays, themes, legend metadata, search, and terrain.
+- `config/config.internal.js`: internal profile's `window.CONFIG`; present only on the internal branch.
+- `js/config-loader.js`: loads the public profile by default, or the internal profile when opened with `?profile=internal`.
 - `config/config_geomaterials.js`: `window.GEOMATERIALS_CONFIG` for the JSON-backed Geomaterials theme: data paths, schemas, filters, links, popups, and depth symbology.
 - `config/*.json`: MapLibre styles and deployment/link configuration.
 - `data/layers.pmtiles`: vector tile archive used by the configured styles.
@@ -22,7 +24,7 @@ The viewer autosaves a versioned session snapshot to browser `localStorage`. On 
 
 ## Map Configuration
 
-Edit `config/config.js` to change the map-wide setup:
+Edit the profile config to change its map-wide setup: `config/config.js` for public, or `config/config.internal.js` for internal. The internal URL must include `?profile=internal`; omitting the parameter loads the public profile.
 
 - `datasets` associates a dataset ID and display name with a style file and PMTiles URL.
 - `basemaps` describes persistent raster basemaps.

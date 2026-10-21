@@ -19,23 +19,20 @@ test('COG class breaks require increasing finite limits and valid optional label
 test('COG class colors span the selected ramp and classify values at configured breaks', () => {
   const classes = validateCogClasses([{ max: 5 }]);
   const ramp = ['#000000', '#ffffff'];
-  assert.deepEqual(cogClassRampColors(ramp, classes), ['#000000', '#ffffff']);
+  assert.deepEqual(cogClassRampColors(ramp, classes), ['#808080']);
 
   const colors = cogClassColorLut(ramp, classes, 0, 10);
   assert.equal(colors.length, 4096);
-  assert.equal(colors[0], '#000000');
-  assert.equal(colors[2047], '#000000');
-  assert.equal(colors[2048], '#ffffff');
-  assert.equal(colors.at(-1), '#ffffff');
+  assert.equal(colors[0], '#808080');
+  assert.equal(colors.at(-1), '#808080');
 });
 
-test('COG class coloring supports a final open-ended class', () => {
+test('COG class coloring uses only configured classes and caps values above the final break', () => {
   const classes = validateCogClasses([{ max: 10 }, { max: 20 }]);
-  assert.deepEqual(cogClassRampColors(['#ff0000', '#0000ff'], classes), [
-    '#ff0000',
-    '#800080',
-    '#0000ff'
-  ]);
+  assert.deepEqual(cogClassRampColors(['#ff0000', '#0000ff'], classes), ['#ff0000', '#0000ff']);
   const colors = cogClassColorLut(['#ff0000', '#0000ff'], classes, 0, 30);
+  assert.equal(colors.length, 4096);
+  assert.equal(colors[0], '#ff0000');
+  assert.equal(colors[2048], '#0000ff');
   assert.equal(colors.at(-1), '#0000ff');
 });

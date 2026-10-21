@@ -137,6 +137,40 @@ test('Tellus Geochemistry samples only the COG layer that is enabled', async ({ 
   expect(requestedUrls.some(url => url.includes('/Antimony%20Sb'))).toBe(true);
 });
 
+test('mobile map readout shows Irish Grid and COG values at the map centre', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('https://data.better-open-data.com/**', route => route.abort());
+  await page.evaluate(() => {
+    const protocol = window.MaplibreCOGProtocol;
+    window.__centerReadoutPoints = [];
+    protocol.getCogMetadata = async () => ({
+      bitsPerSample: [16],
+      bbox: [-8, 54, -7, 55],
+      images: [{ isMask: false, zoom: 0 }]
+    });
+    protocol.locationValues = async (url, point, zoom) => {
+      if (zoom !== undefined) throw new Error('Skip range sampling in the mobile readout test');
+      window.__centerReadoutPoints.push(point);
+      return [42.75];
+    };
+  });
+  await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Tellus Geochemistry' });
+
+  const readout = page.locator('#mobileMapReadout');
+  await expect(readout).toBeVisible();
+  await expect(readout.locator('strong')).toHaveText('Values at centre of map');
+  await expect(page.locator('#mobileCogValues')).toContainText(/Aluminium.*42\.75/);
+  const expectedGrid = await page.evaluate(() => {
+    const [east, north] = window.proj4('EPSG:4326', 'EPSG:29902', window.CONFIG.center);
+    return `Irish Grid  E ${east.toFixed(0)}  N ${north.toFixed(0)}`;
+  });
+  await expect(page.locator('#mobileMapCoords')).toHaveText(expectedGrid);
+  const samplePoint = await page.evaluate(() => window.__centerReadoutPoints.at(-1));
+  const [longitude, latitude] = await page.evaluate(() => window.CONFIG.center);
+  expect(samplePoint.longitude).toBeCloseTo(longitude, 5);
+  expect(samplePoint.latitude).toBeCloseTo(latitude, 5);
+});
+
 test('switching between Site Investigations and Tellus Geophysics preserves theme visibility', async ({ page }) => {
   const theme = page.getByRole('combobox', { name: 'Theme' });
   const siteReports = page.getByRole('checkbox', { name: 'Site Reports', exact: true });

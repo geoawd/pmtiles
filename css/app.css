@@ -66,6 +66,12 @@
   #coords, #cogValues { max-width: min(420px, calc(100vw - 50px)); }
   #cogValues { white-space: pre-line; }
   #cogValues:empty { display: none; }
+  #mobileMapReadout { display: none; max-width: min(420px, calc(100vw - 50px)); padding: 6px 8px; border-radius: 3px; background: rgba(255,255,255,.94); font-size: 12px; }
+  #mobileMapReadout strong { display: block; margin-bottom: 3px; }
+  #mobileMapCoords { margin-bottom: 3px; }
+  #mobileCogValues { white-space: pre-line; }
+  #mobileCogValues:empty { display: none; }
+  #mobileMapReadout[hidden] { display: none; }
   #zoomLevel[hidden] { display: none; }
   #selbox { position: absolute; border: 2px dashed var(--ac); background: rgba(31,42,51,.12); pointer-events: none; display: none; }
   #toast { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 7; display: none; max-width: 90%; background: var(--rail-bg); color: #fff; padding: 8px 14px; border-radius: 6px; box-shadow: 0 1px 6px rgba(0,0,0,.4); }
@@ -387,7 +393,11 @@
     body.drawer-open #panel { display: none; }   /* keeps the map usable while the menu is open */
     body.drawer-open #panelSplitter { display: none; }
     #coords, #cogValues { display: none; }
+    #mobileMapReadout:not([hidden]) { display: block; }
     button, #legend label { min-height: 34px; }
   }
-  @media (hover: none) { #coords, #cogValues { display: none; } }
+  @media (hover: none) {
+    #coords, #cogValues { display: none; }
+    #mobileMapReadout:not([hidden]) { display: block; }
+  }
   @media (prefers-reduced-motion: reduce) { #drawer { transition: none; } }

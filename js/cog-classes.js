@@ -36,13 +36,13 @@ function classIndex(value, classes) {
     if (value <= classes[middle].max) high = middle;
     else low = middle + 1;
   }
-  return low;
+  return Math.min(low, classes.length - 1);
 }
 
 export function cogClassRampColors(rampColors, classes) {
-  const classCount = classes.length + 1;
+  const classCount = classes.length;
   return Array.from({ length: classCount }, (_, index) =>
-    rampColorAt(rampColors, index / (classCount - 1)));
+    rampColorAt(rampColors, classCount === 1 ? 0.5 : index / (classCount - 1)));
 }
 
 export function cogClassColorLut(rampColors, classes, min, max) {

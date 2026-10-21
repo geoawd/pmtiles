@@ -137,15 +137,6 @@ let cursorPosition = null;
 let cursorCoordinateText = 'Move the cursor…';
 let cogCursorRequestId = 0;
 let cogCursorTimer = null;
-const mobileMapReadoutMedia = matchMedia('(max-width: 700px), (hover: none)');
-function usesMapCenterReadout() {
-  return mobileMapReadoutMedia.matches;
-}
-function activeCogReadoutPoint() {
-  if (!usesMapCenterReadout()) return cursorPosition;
-  const center = map.getCenter();
-  return { longitude: center.lng, latitude: center.lat };
-}
 function visibleSingleBandCogs() {
   return allOverlays().filter(overlay => {
     const state = overlay.cogState;
@@ -156,12 +147,11 @@ function visibleSingleBandCogs() {
     });
   });
 }
-function scheduleCogCursorValues(point = activeCogReadoutPoint()) {
+function scheduleCogCursorValues(point) {
   const requestId = ++cogCursorRequestId;
   clearTimeout(cogCursorTimer);
-  $('cogValues').textContent = '';
-  $('mobileCogValues').textContent = '';
   if (!point) return;
+  $('cogValues').textContent = '';
   if (!visibleSingleBandCogs().length) return;
   cogCursorTimer = setTimeout(() => showCogCursorValues(point, requestId), 120);
 }
@@ -183,44 +173,21 @@ async function showCogCursorValues(point, requestId) {
     }
   }));
   if (requestId !== cogCursorRequestId) return;
-  const output = usesMapCenterReadout() ? $('mobileCogValues') : $('cogValues');
-  output.textContent = results.join('\n');
-}
-function updateMobileMapReadout() {
-  const centerReadout = $('mobileMapReadout');
-  const showCenter = usesMapCenterReadout();
-  centerReadout.hidden = !showCenter;
-  if (!showCenter) {
-    $('mobileCogValues').textContent = '';
-    return;
-  }
-  const center = map.getCenter();
-  const [x, y] = proj4('EPSG:4326', 'EPSG:29902', [center.lng, center.lat]);
-  $('mobileMapCoords').textContent = `Irish Grid  E ${x.toFixed(0)}  N ${y.toFixed(0)}`;
-  scheduleCogCursorValues();
+  $('cogValues').textContent = results.join('\n');
 }
 map.on('mousemove', e => {
   const [x, y] = proj4('EPSG:4326', 'EPSG:29902', [e.lngLat.lng, e.lngLat.lat]);
   cursorPosition = { longitude: e.lngLat.lng, latitude: e.lngLat.lat };
   cursorCoordinateText = `Irish Grid  E ${x.toFixed(0)}  N ${y.toFixed(0)}`;
   $('coords').textContent = cursorCoordinateText;
-  scheduleCogCursorValues();
+  scheduleCogCursorValues(cursorPosition);
 });
 map.on('mouseout', () => {
   cursorPosition = null;
   cogCursorRequestId++;
   clearTimeout(cogCursorTimer);
   $('cogValues').textContent = '';
-  if (usesMapCenterReadout()) updateMobileMapReadout();
 });
-map.on('moveend', updateMobileMapReadout);
-if (typeof mobileMapReadoutMedia.addEventListener === 'function') {
-  mobileMapReadoutMedia.addEventListener('change', updateMobileMapReadout);
-} else if (typeof mobileMapReadoutMedia.addListener === 'function') {
-  mobileMapReadoutMedia.addListener(updateMobileMapReadout);
-}
-window.addEventListener('resize', updateMobileMapReadout);
-updateMobileMapReadout();
 
 // ---------- Menu ----------
 let tool = null;
@@ -642,7 +609,7 @@ function setThemeVisibility(ids, on) {
     syncLayerVisibility(id);
   });
   initializeVisibleCogControls();
-  scheduleCogCursorValues();
+  if (cursorPosition) scheduleCogCursorValues(cursorPosition);
   updateArcgisLegendInView();
 }
 function setGroupVisibility(ids, key, on) {
@@ -3644,7 +3611,7 @@ function initializeCogRampControls(w, panel, legend) {
         toast(message);
       }
     }
-    scheduleCogCursorValues();
+    if (cursorPosition) scheduleCogCursorValues(cursorPosition);
     return true;
   };
   state.controlsInitializing = true;
@@ -3655,7 +3622,6 @@ function initializeCogRampControls(w, panel, legend) {
     const message = `Could not inspect ${w.name || w.id} COG: ${error.message}`;
     status.textContent = message;
     toast(message);
-    if (state.valueReadoutAvailable) scheduleCogCursorValues();
   }).finally(() => {
     state.controlsInitializing = false;
   });
@@ -4231,7 +4197,7 @@ function buildOverlayLegend() {
           w.cogState.visible = on;
           syncCogLayerMode(w);
           initializeVisibleCogControls();
-          scheduleCogCursorValues();
+          if (cursorPosition) scheduleCogCursorValues(cursorPosition);
         } else setVis(layerIds, on);
       };
       cb.onchange = () => setOverlayVisibility(cb.checked);

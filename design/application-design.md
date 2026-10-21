@@ -10,7 +10,7 @@ On mobile, the tools drawer opens at 45% of the viewport height, can be dragged 
 
 ## Session Recovery
 
-The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume**, **Start Over (with added layers)**, or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, COG display settings, and terrain settings. Manually added layers are stored separately per theme: Start Over keeps them, while Reset app clears them as well as the saved session. Both fresh-start choices clear filter state encoded in the URL hash. Internal profile state uses separate storage keys; the public profile retains its existing keys. Nothing is sent to a server.
+The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume** or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, COG display settings, and terrain settings. Reset app clears the saved session and manually added layers, and clears filter state encoded in the URL hash. Internal profile state uses separate storage keys; the public profile retains its existing keys. Nothing is sent to a server.
 
 ## Directory Layout
 

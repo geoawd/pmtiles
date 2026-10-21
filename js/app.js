@@ -4267,7 +4267,7 @@ map.on('load', async () => {
   const startup = await chooseSessionStartup();
   startupSessionSnapshot = startup.action === 'resume' ? startup.snapshot : null;
   if (startup.action === 'reset') clearSavedThemeAdditions();
-  if (startup.action === 'start-over' || startup.action === 'reset') {
+  if (startup.action === 'reset') {
     history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
   if (startup.action !== 'resume') {

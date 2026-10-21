@@ -37,6 +37,21 @@ test('Terra Draw controls are expanded below Find My Location', async ({ page })
   expect(drawControlFollowsGeolocate).toBe(true);
 });
 
+test('saved-session prompt offers only Resume and Reset app', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('mapviewer.session.v1', JSON.stringify({
+      version: 1,
+      view: { center: [-6, 54], zoom: 8 }
+    }));
+  });
+  await page.reload();
+
+  const dialog = page.getByRole('dialog', { name: 'Resume your previous session?' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button')).toHaveText(['Resume', 'Reset app']);
+  await expect(dialog.getByRole('button', { name: /Start Over/ })).toHaveCount(0);
+});
+
 test('Site Investigations exposes its vector layers and updates their map visibility', async ({ page }) => {
   await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Site Investigations' });
 

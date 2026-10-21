@@ -171,6 +171,16 @@ test('mobile map readout shows Irish Grid and COG values at the map centre', asy
   expect(samplePoint.latitude).toBeCloseTo(latitude, 5);
 });
 
+test('mobile readout starts with legacy MediaQueryList listeners', async ({ page }) => {
+  await page.addInitScript(() => {
+    const prototype = Object.getPrototypeOf(window.matchMedia('(max-width: 700px)'));
+    Object.defineProperty(prototype, 'addEventListener', { configurable: true, value: undefined });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page.locator('#mobileMapReadout')).toBeVisible();
+});
+
 test('switching between Site Investigations and Tellus Geophysics preserves theme visibility', async ({ page }) => {
   const theme = page.getByRole('combobox', { name: 'Theme' });
   const siteReports = page.getByRole('checkbox', { name: 'Site Reports', exact: true });

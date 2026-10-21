@@ -214,7 +214,12 @@ map.on('mouseout', () => {
   if (usesMapCenterReadout()) updateMobileMapReadout();
 });
 map.on('moveend', updateMobileMapReadout);
-mobileMapReadoutMedia.addEventListener('change', updateMobileMapReadout);
+if (typeof mobileMapReadoutMedia.addEventListener === 'function') {
+  mobileMapReadoutMedia.addEventListener('change', updateMobileMapReadout);
+} else if (typeof mobileMapReadoutMedia.addListener === 'function') {
+  mobileMapReadoutMedia.addListener(updateMobileMapReadout);
+}
+window.addEventListener('resize', updateMobileMapReadout);
 updateMobileMapReadout();
 
 // ---------- Menu ----------

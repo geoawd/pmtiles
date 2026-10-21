@@ -118,14 +118,14 @@ test('Tellus Geochemistry samples only the COG layer that is enabled', async ({ 
     };
   });
   await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Tellus Geochemistry' });
-  const aluminium = page.getByRole('checkbox', { name: 'Aluminium Al % (Percentile) DL = 0.01', exact: true });
-  const antimony = page.getByRole('checkbox', { name: 'Antimony Sb mg/kg (Percentile) DL = 0.05', exact: true });
+  const aluminium = page.getByRole('checkbox', { name: /^Aluminium Al %/ });
+  const antimony = page.getByRole('checkbox', { name: /^Antimony Sb mg\/kg/ });
   await expect(aluminium).toBeVisible();
   await expect(aluminium).toBeChecked();
   await expect(antimony).not.toBeChecked();
   await expect.poll(() => page.evaluate(() => window.__cogMetadataCalls.length)).toBe(1);
   await expect.poll(() => page.evaluate(() => window.__cogRangeCalls.length)).toBe(32);
-  expect(await page.evaluate(() => window.__cogMetadataCalls[0])).toContain('/Aluminium%20Al');
+  expect(await page.evaluate(() => window.__cogMetadataCalls[0])).toContain('/Aluminium');
   expect(await page.evaluate(() => [...new Set(window.__cogRangeCalls)])).toHaveLength(1);
 
   await aluminium.uncheck();

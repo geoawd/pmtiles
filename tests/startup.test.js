@@ -86,6 +86,27 @@ test('config loader selects the requested profile and starts styles after config
   assert.deepEqual(browser.alerts, []);
 });
 
+test('config loader URI-encodes overlay and terrain COG URLs before loading styles', async () => {
+  const browser = makeConfigLoaderBrowser();
+  browser.window.CONFIG = {
+    overlays: [
+      { cog: 'https://example.org/soil sample.tif' },
+      { cog: 'https://example.org/encoded%20soil.tif' }
+    ],
+    terrain: {
+      cog: 'data/terrain model.tif',
+      models: [{ cog: 'https://example.org/elevation model.tif' }]
+    }
+  };
+  browser.scripts[0].onload();
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(browser.window.CONFIG.overlays[0].cog, 'https://example.org/soil%20sample.tif');
+  assert.equal(browser.window.CONFIG.overlays[1].cog, 'https://example.org/encoded%2520soil.tif');
+  assert.equal(browser.window.CONFIG.terrain.cog, 'data/terrain%20model.tif');
+  assert.equal(browser.window.CONFIG.terrain.models[0].cog, 'https://example.org/elevation%20model.tif');
+});
+
 test('config loader reports unknown profiles without loading scripts', () => {
   const browser = makeConfigLoaderBrowser('?profile=unknown');
   assert.deepEqual(browser.scripts, []);

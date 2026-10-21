@@ -36,10 +36,25 @@
     script.onerror = () => reject(new Error(`Could not load ${src}.`));
     document.body.appendChild(script);
   });
+  const encodeCogUrls = config => {
+    const encode = value => typeof value === 'string' ? encodeURI(value) : value;
+    (config.overlays || []).forEach(overlay => {
+      if (overlay && typeof overlay === 'object' && typeof overlay.cog === 'string') {
+        overlay.cog = encode(overlay.cog);
+      }
+    });
+    if (typeof config.terrain?.cog === 'string') config.terrain.cog = encode(config.terrain.cog);
+    (config.terrain?.models || []).forEach(model => {
+      if (model && typeof model === 'object' && typeof model.cog === 'string') {
+        model.cog = encode(model.cog);
+      }
+    });
+  };
 
   loadScript(profileConfigs[profile])
     .then(() => {
       if (!window.CONFIG) throw new Error(`${profileConfigs[profile]} did not define window.CONFIG.`);
+      encodeCogUrls(window.CONFIG);
       return loadScript('js/styles.js');
     })
     .catch(error => showError(`Could not start the ${profile} profile: ${error.message}`));

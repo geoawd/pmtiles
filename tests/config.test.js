@@ -4,6 +4,8 @@ import path from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { validateCogClasses } from '../js/cog-classes.js';
+import { cogResamplingUrl } from '../js/cog-resampling.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = path.join(root, 'config/config.js');
@@ -71,6 +73,16 @@ test('configured raster and tile sources have valid source settings', () => {
       `overlay "${overlay.id}" source must be a string`);
     if (sourceFields[0] !== 'geojson') {
       assert.ok(overlay[sourceFields[0]].length > 0, `overlay "${overlay.id}" source must not be empty`);
+    }
+    if (overlay.classes !== undefined) {
+      assert.equal(sourceFields[0], 'cog', `overlay "${overlay.id}" classes require a COG source`);
+      assert.doesNotThrow(() => validateCogClasses(overlay.classes),
+        `overlay "${overlay.id}" classes must contain increasing finite max values`);
+    }
+    if (overlay.resampling !== undefined) {
+      assert.equal(sourceFields[0], 'cog', `overlay "${overlay.id}" resampling requires a COG source`);
+      assert.doesNotThrow(() => cogResamplingUrl('', overlay.resampling),
+        `overlay "${overlay.id}" resampling must be nearest or bilinear`);
     }
 
     if (overlay.opacity !== undefined) {

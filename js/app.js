@@ -1,5 +1,7 @@
 import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-gl.mjs';
 import { COLORCET_RAMPS } from './colorcet-ramps.js';
+import { cogClassColorLut, cogClassRampColors, validateCogClasses } from './cog-classes.js';
+import { cogResamplingUrl } from './cog-resampling.js';
 import { buildJsonFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, jsonGeometryCenter, jsonGeometryIntersectsBounds, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
 
 window.maplibregl = maplibregl;
@@ -11,13 +13,14 @@ maplibregl.addProtocol('pmtiles', new pmtiles.Protocol().tile);
 if (window.MaplibreCOGProtocol) {
   const cogProtocol = window.MaplibreCOGProtocol.cogProtocol;
   maplibregl.addProtocol('cog', async request => {
-    const match = request.url.match(/#dem&reliefScale=([^&/]+)&reliefCenter=([^/]+)(?=\/\d+\/\d+\/\d+$)/);
+    const match = request.url.match(/#dem&reliefScale=([^&/]+)&reliefCenter=([^&/]+)(?:&resampling=(nearest|bilinear))?(?=\/\d+\/\d+\/\d+$)/);
     if (!match || request.type !== 'image') return cogProtocol(request);
     const scale = Number(match[1]), center = Number(match[2]);
     if (!Number.isFinite(scale) || scale < 1 || !Number.isFinite(center)) {
       throw new Error('Invalid COG hillshade relief scaling.');
     }
-    const response = await cogProtocol({ ...request, url: request.url.replace(match[0], '#dem') });
+    const demFragment = `#dem${match[3] ? `&resampling=${match[3]}` : ''}`;
+    const response = await cogProtocol({ ...request, url: request.url.replace(match[0], demFragment) });
     return { ...response, data: await scaleCogDemTile(response.data, scale, center) };
   });
 }
@@ -48,6 +51,24 @@ if (boundsValid) map.addControl({
 }, 'top-right');
 map.addControl(new maplibregl.ScaleControl());
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
+map.addControl(new window.MaplibreTerradrawControl.MaplibreTerradrawControl({
+  modes: [
+    'point',
+    'linestring',
+    'polygon',
+    'rectangle',
+    'circle',
+    'freehand',
+    'angled-rectangle',
+    'sensor',
+    'sector',
+    'select',
+    'delete-selection',
+    'delete',
+    'download'
+  ],
+  open: true
+}), 'top-right');
 map.addControl({
   onAdd() {
     const container = document.createElement('div');
@@ -112,9 +133,60 @@ if (CONFIG.showZoom) {
   map.on('zoom', showZoom);
   showZoom();
 }
+let cursorPosition = null;
+let cursorCoordinateText = 'Move the cursor…';
+let cogCursorRequestId = 0;
+let cogCursorTimer = null;
+function visibleSingleBandCogs() {
+  return allOverlays().filter(overlay => {
+    const state = overlay.cogState;
+    if (!state?.valueReadoutAvailable) return false;
+    return [overlay.id, ...state.colorLayerIds].some(id => {
+      const visibility = layerVisibility.get(id);
+      return map.getLayer(id) && visibility?.selected && visibility.inTheme && !visibility.groups.size;
+    });
+  });
+}
+function scheduleCogCursorValues(point) {
+  const requestId = ++cogCursorRequestId;
+  clearTimeout(cogCursorTimer);
+  if (!point) return;
+  $('cogValues').textContent = '';
+  if (!visibleSingleBandCogs().length) return;
+  cogCursorTimer = setTimeout(() => showCogCursorValues(point, requestId), 120);
+}
+async function showCogCursorValues(point, requestId) {
+  const cogs = visibleSingleBandCogs();
+  if (!cogs.length) return;
+  const results = await Promise.all(cogs.map(async overlay => {
+    try {
+      const values = await window.MaplibreCOGProtocol.locationValues(overlay.cogState.url, point);
+      if (!Array.isArray(values)) throw new Error('The COG returned no sample values.');
+      const value = values.find(Number.isFinite);
+      if (value === undefined) return `${overlay.name || overlay.id}: no data`;
+      const units = typeof overlay.legendunits === 'string' && overlay.legendunits
+        ? ` ${overlay.legendunits}` : '';
+      return `${overlay.name || overlay.id}: ${cogValueLabel(value)}${units}`;
+    } catch (error) {
+      console.error(`Could not read ${overlay.name || overlay.id} COG value:`, error);
+      return `${overlay.name || overlay.id}: unavailable`;
+    }
+  }));
+  if (requestId !== cogCursorRequestId) return;
+  $('cogValues').textContent = results.join('\n');
+}
 map.on('mousemove', e => {
   const [x, y] = proj4('EPSG:4326', 'EPSG:29902', [e.lngLat.lng, e.lngLat.lat]);
-  $('coords').textContent = `Irish Grid  E ${x.toFixed(0)}  N ${y.toFixed(0)}`;
+  cursorPosition = { longitude: e.lngLat.lng, latitude: e.lngLat.lat };
+  cursorCoordinateText = `Irish Grid  E ${x.toFixed(0)}  N ${y.toFixed(0)}`;
+  $('coords').textContent = cursorCoordinateText;
+  scheduleCogCursorValues(cursorPosition);
+});
+map.on('mouseout', () => {
+  cursorPosition = null;
+  cogCursorRequestId++;
+  clearTimeout(cogCursorTimer);
+  $('cogValues').textContent = '';
 });
 
 // ---------- Menu ----------
@@ -536,6 +608,8 @@ function setThemeVisibility(ids, on) {
     state.inTheme = on;
     syncLayerVisibility(id);
   });
+  initializeVisibleCogControls();
+  if (cursorPosition) scheduleCogCursorValues(cursorPosition);
   updateArcgisLegendInView();
 }
 function setGroupVisibility(ids, key, on) {
@@ -545,6 +619,7 @@ function setGroupVisibility(ids, key, on) {
     on ? state.groups.delete(key) : state.groups.add(key);
     syncLayerVisibility(id);
   });
+  initializeVisibleCogControls();
   updateArcgisLegendInView();
 }
 
@@ -2972,7 +3047,7 @@ function cogSampleCoordinates(bbox) {
     };
   });
 }
-async function sampleCogValueRange(url, metadata) {
+async function sampleCogValueRange(url, metadata, shouldContinue = () => true) {
   if (!Array.isArray(metadata.bbox) || metadata.bbox.length !== 4 || !metadata.bbox.every(Number.isFinite)) {
     throw new Error('The COG does not provide a geographic bounding box.');
   }
@@ -2984,8 +3059,10 @@ async function sampleCogValueRange(url, metadata) {
   for (const zoom of zooms) {
     const values = [];
     for (let start = 0; start < coordinates.length; start += 32) {
+      if (!shouldContinue()) return null;
       const batch = await Promise.all(coordinates.slice(start, start + 32).map(point =>
         window.MaplibreCOGProtocol.locationValues(url, point, zoom)));
+      if (!shouldContinue()) return null;
       values.push(...batch.flat().filter(Number.isFinite));
     }
     if (values.length) {
@@ -3092,6 +3169,23 @@ function syncCogLayerMode(w) {
     setCogDerivedLayerSelected(w, state.hillshadeLayerId, enabled && state.hillshadeEnabled);
   }
 }
+function isCogOverlayVisible(w) {
+  const state = w.cogState;
+  if (!state) return false;
+  return [w.id, ...state.colorLayerIds, ...(state.hillshadeCreated ? [state.hillshadeLayerId] : [])]
+    .some(id => {
+      const visibility = layerVisibility.get(id);
+      return map.getLayer(id) && visibility?.selected && visibility.inTheme && !visibility.groups.size;
+    });
+}
+function initializeVisibleCogControls() {
+  allOverlays().forEach(w => {
+    const state = w.cogState;
+    if (state && state.controlsPanel && state.controlsLegend && isCogOverlayVisible(w)) {
+      initializeCogRampControls(w, state.controlsPanel, state.controlsLegend);
+    }
+  });
+}
 function removeCogColorLayers(w) {
   const state = w.cogState;
   state.colorLayerIds.forEach(id => {
@@ -3108,9 +3202,11 @@ function removeCogColorLayers(w) {
 function addCogColorLayers(w) {
   const state = w.cogState;
   const range = cogDisplayRange(state);
-  const colors = state.mode === 'quantile'
-    ? cogQuantileRampColors(COG_RAMP_COLORS[state.ramp], state.quantileBounds)
-    : COG_RAMP_COLORS[state.ramp];
+  const colors = state.mode === 'classes'
+    ? cogClassColorLut(COG_RAMP_COLORS[state.ramp], state.classes, range.min, range.max)
+    : state.mode === 'quantile'
+      ? cogQuantileRampColors(COG_RAMP_COLORS[state.ramp], state.quantileBounds)
+      : COG_RAMP_COLORS[state.ramp];
   const addLayer = (sourceUrl, index) => {
     const id = `${w.id}__cog_color_${index}`;
     const sourceId = `${id}-source`;
@@ -3133,7 +3229,11 @@ function addCogColorLayers(w) {
     });
     setCogDerivedLayerSelected(w, id, state.visible);
   };
-  const sourceUrl = `cog://${state.url}#color=${JSON.stringify(colors)},${cogValueLabel(range.min)},${cogValueLabel(range.max)},c`;
+  const continuous = state.mode === 'classes' ? '' : ',c';
+  const sourceUrl = cogResamplingUrl(
+    `cog://${state.url}#color=${JSON.stringify(colors)},${cogValueLabel(range.min)},${cogValueLabel(range.max)}${continuous}`,
+    state.resampling
+  );
   addLayer(sourceUrl, 0);
 }
 function updateCogColorLayers(w) {
@@ -3160,7 +3260,10 @@ function createCogHillshade(w) {
   if (!state.hillshadeOption || state.hillshadeCreated) return;
   map.addSource(state.hillshadeSourceId, {
     type: 'raster-dem',
-    url: `cog://${state.url}#dem&reliefScale=${state.hillshadeVerticalScale}&reliefCenter=${state.hillshadeVerticalCenter}`,
+    url: cogResamplingUrl(
+      `cog://${state.url}#dem&reliefScale=${state.hillshadeVerticalScale}&reliefCenter=${state.hillshadeVerticalCenter}`,
+      state.resampling
+    ),
     tileSize: w.tileSize || 256,
     ...(Number.isFinite(w.maxzoom) ? { maxzoom: w.maxzoom } : {})
   });
@@ -3197,6 +3300,30 @@ function renderCogRampLegend(w, legend) {
   const rampName = document.createElement('span');
   rampName.textContent = state.ramp;
   title.append(units, rampName);
+  if (state.mode === 'classes') {
+    const classList = document.createElement('div');
+    classList.className = 'cog-ramp-class-legend';
+    const colors = cogClassRampColors(COG_RAMP_COLORS[state.ramp], state.classes);
+    for (let index = colors.length - 1; index >= 0; index--) {
+      const row = document.createElement('div');
+      row.className = 'cog-ramp-class-row';
+      const swatch = document.createElement('span');
+      swatch.className = 'cog-ramp-class-swatch';
+      swatch.style.backgroundColor = colors[index];
+      const label = document.createElement('span');
+      const limit = index === 0
+        ? `≤ ${cogValueLabel(state.classes[0].max)}`
+        : index < state.classes.length
+          ? `> ${cogValueLabel(state.classes[index - 1].max)} to ≤ ${cogValueLabel(state.classes[index].max)}`
+          : `> ${cogValueLabel(state.classes[index - 1].max)}`;
+      const classLabel = state.classes[index]?.label;
+      label.textContent = classLabel ? `${classLabel} (${limit})` : limit;
+      row.append(swatch, label);
+      classList.appendChild(row);
+    }
+    legend.append(title, classList);
+    return;
+  }
   const bar = document.createElement('div');
   bar.className = 'cog-ramp-legend-bar';
   bar.style.backgroundImage = `linear-gradient(to right, ${COG_RAMP_COLORS[state.ramp].join(', ')})`;
@@ -3213,18 +3340,29 @@ function initializeCogRampControls(w, panel, legend) {
   const controls = panel.querySelector('.cog-ramp-controls');
   const status = controls.querySelector('.cog-ramp-status');
   const state = w.cogState;
+  if (state.controlsInitialized || state.controlsInitializing || !isCogOverlayVisible(w)) return;
   const url = state.url;
   const setup = async () => {
     const metadata = await window.MaplibreCOGProtocol.getCogMetadata(url);
+    if (!isCogOverlayVisible(w)) {
+      status.textContent = 'Enable this layer to load its COG controls.';
+      return false;
+    }
     if (metadata.bitsPerSample?.length !== 1) {
+      state.valueReadoutAvailable = false;
       state.ramp = '';
       status.textContent = metadata.bitsPerSample?.length > 1
         ? 'Multiband COGs are displayed as RGB; color ramps and hillshade are available for single-band COGs only.'
         : 'Color ramps and hillshade are available for single-band COGs only.';
       syncCogLayerMode(w);
-      return;
+      return true;
     }
-    const range = await sampleCogValueRange(url, metadata);
+    state.valueReadoutAvailable = true;
+    const range = await sampleCogValueRange(url, metadata, () => isCogOverlayVisible(w));
+    if (!range) {
+      status.textContent = 'Enable this layer to load its COG controls.';
+      return false;
+    }
     state.rangeMin = range.min;
     state.rangeMax = range.max;
     state.hillshadeVerticalCenter = range.min + (range.max - range.min) / 2;
@@ -3298,6 +3436,9 @@ function initializeCogRampControls(w, panel, legend) {
     modeSelect.add(new Option('Continuous', 'continuous'));
     modeSelect.add(new Option(`Quantile (${COG_QUANTILE_CLASS_COUNT} stops, smooth)`, 'quantile'));
     modeSelect.add(new Option('Percentile clipped (2-98%)', 'percentile'));
+    if (state.classes.length) {
+      modeSelect.add(new Option(`Configured class breaks (${state.classes.length})`, 'classes'));
+    }
     modeSelect.value = state.mode;
     modeLabel.appendChild(modeSelect);
     const error = document.createElement('div');
@@ -3470,11 +3611,19 @@ function initializeCogRampControls(w, panel, legend) {
         toast(message);
       }
     }
+    if (cursorPosition) scheduleCogCursorValues(cursorPosition);
+    return true;
   };
-  setup().catch(error => {
+  state.controlsInitializing = true;
+  status.textContent = 'Inspecting COG bands…';
+  setup().then(initialized => {
+    if (initialized) state.controlsInitialized = true;
+  }).catch(error => {
     const message = `Could not inspect ${w.name || w.id} COG: ${error.message}`;
     status.textContent = message;
     toast(message);
+  }).finally(() => {
+    state.controlsInitializing = false;
   });
 }
 function addRasterLayer(w, beforeId) {
@@ -3487,10 +3636,16 @@ function addRasterLayer(w, beforeId) {
     if (saved && Number.isFinite(saved.opacity) && saved.opacity >= 0 && saved.opacity <= 1) w.opacity = saved.opacity;
     const ramp = typeof saved?.ramp === 'string' && (saved.ramp === '' || saved.ramp in COG_RAMP_COLORS)
       ? saved.ramp : COG_DEFAULT_RAMP;
+    const classes = w.classes === undefined ? [] : validateCogClasses(w.classes);
+    const availableModes = ['continuous', 'quantile', 'percentile', ...(classes.length ? ['classes'] : [])];
+    const mode = availableModes.includes(saved?.mode)
+      ? saved.mode : classes.length ? 'classes' : 'quantile';
     const configuredHillshade = w.hillshade_option === true || w.hillshade_option === 'true';
     const savedHillshadePreference = saved?.hillshadePreferenceSet === true;
     w.cogState = {
       url: baseUrl.href,
+      resampling: w.resampling,
+      valueReadoutAvailable: false,
       colorLayerIds: [],
       hillshadeSourceId: `${w.id}__hillshade_source`,
       hillshadeLayerId: `${w.id}__hillshade`,
@@ -3513,14 +3668,17 @@ function addRasterLayer(w, beforeId) {
       rangeMax: null,
       quantileBounds: [],
       percentileRange: null,
-      mode: ['continuous', 'quantile', 'percentile'].includes(saved?.mode) ? saved.mode : 'quantile',
-      ramp
+      classes,
+      mode,
+      ramp,
+      controlsInitialized: false,
+      controlsInitializing: false
     };
     w.visible = w.cogState.visible;
     w.layerIds = [w.id, w.cogState.hillshadeLayerId];
   }
   const source = w.cog
-    ? { type: 'raster', url: `cog://${cogUrl}`, tileSize: w.tileSize || 256 }
+    ? { type: 'raster', url: cogResamplingUrl(`cog://${cogUrl}`, w.resampling), tileSize: w.tileSize || 256 }
     : { type: 'raster', tileSize: w.tileSize || 256, tiles: Array.isArray(w.tiles) ? w.tiles : [overlayTileUrl(w)] };
   if (w.attribution) source.attribution = w.attribution;
   if (Number.isFinite(w.maxzoom)) source.maxzoom = w.maxzoom;
@@ -4038,12 +4196,14 @@ function buildOverlayLegend() {
         if (w.cogState) {
           w.cogState.visible = on;
           syncCogLayerMode(w);
+          initializeVisibleCogControls();
+          if (cursorPosition) scheduleCogCursorValues(cursorPosition);
         } else setVis(layerIds, on);
       };
       cb.onchange = () => setOverlayVisibility(cb.checked);
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(layerIds, on), set: setOverlayVisibility, el: d };
       const cogControls = w.cogState
-        ? '<div class="cog-ramp-controls"><div class="cog-ramp-status" role="status">Inspecting COG bands…</div></div>'
+        ? '<div class="cog-ramp-controls"><div class="cog-ramp-status" role="status">Enable this layer to load its COG controls.</div></div>'
         : '';
       const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
         w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : cogControls);
@@ -4058,7 +4218,8 @@ function buildOverlayLegend() {
         legend.className = 'cog-ramp-legend';
         legend.hidden = true;
         d.appendChild(legend);
-        initializeCogRampControls(w, t.panel, legend);
+        w.cogState.controlsPanel = t.panel;
+        w.cogState.controlsLegend = legend;
       }
       if (w.hillshade) bindHillshadeControls(t.panel);
       if (w.contours) bindContourControls(t.panel);
@@ -4141,6 +4302,7 @@ map.on('load', async () => {
   enableLegendReordering();
   setupThemes(startupSessionSnapshot?.theme || null, startup.action === 'start');
   if (startupSessionSnapshot) restoreSessionSnapshot(startupSessionSnapshot);
+  initializeVisibleCogControls();
   sessionPersistenceReady = true;
   const onSessionControlChange = event => {
     const target = event.target;

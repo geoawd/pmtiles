@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.route('https://tile.openstreetmap.org/**', route => route.abort());
   await page.goto('/');
-  await expect(page.locator('#themeSel option')).toHaveCount(6, { timeout: 20_000 });
+  await expect(page.locator('#themeSel option').first()).toBeAttached({ timeout: 20_000 });
   await expect(page.getByRole('combobox', { name: 'Theme' })).toBeVisible();
   await page.evaluate(() => {
     const prototype = window.maplibregl.Map.prototype;
@@ -16,6 +16,25 @@ test.beforeEach(async ({ page }) => {
       return setLayoutProperty.apply(this, args);
     };
   });
+});
+
+test('Terra Draw controls are expanded below Find My Location', async ({ page }) => {
+  const pointButton = page.getByRole('button', { name: 'Point', exact: true });
+  const polygonButton = page.getByRole('button', { name: 'Polygon', exact: true });
+  const downloadButton = page.getByRole('button', { name: 'Download', exact: true });
+  await expect(pointButton).toBeVisible();
+  await expect(polygonButton).toBeVisible();
+  await expect(downloadButton).toBeVisible();
+
+  const drawControlFollowsGeolocate = await page.locator('.maplibregl-ctrl-top-right').evaluate(container => {
+    const locationControl = container.querySelector('.maplibregl-ctrl-geolocate')?.closest('.maplibregl-ctrl');
+    const pointControl = [...container.querySelectorAll('button')]
+      .find(button => (button.getAttribute('aria-label') || button.title) === 'Point')
+      ?.closest('.maplibregl-ctrl');
+    return !!locationControl && !!pointControl &&
+      [...container.children].indexOf(pointControl) === [...container.children].indexOf(locationControl) + 1;
+  });
+  expect(drawControlFollowsGeolocate).toBe(true);
 });
 
 test('Site Investigations exposes its vector layers and updates their map visibility', async ({ page }) => {
@@ -66,6 +85,41 @@ test('Tellus Geophysics exposes its raster groups and toggles a COG layer', asyn
       call.layerId === 'Magnetics Residual' && call.visibility === visibility
     ), expectedVisibility
   )).toBe(true);
+});
+
+test('Tellus Geochemistry samples only the COG layer that is enabled', async ({ page }) => {
+  await page.route('https://data.better-open-data.com/**', route => route.abort());
+  await page.evaluate(() => {
+    const protocol = window.MaplibreCOGProtocol;
+    window.__cogMetadataCalls = [];
+    window.__cogRangeCalls = [];
+    protocol.getCogMetadata = async url => {
+      window.__cogMetadataCalls.push(url);
+      return { bitsPerSample: [16], bbox: [-8, 54, -7, 55], images: [{ isMask: false, zoom: 0 }] };
+    };
+    protocol.locationValues = async url => {
+      window.__cogRangeCalls.push(url);
+      throw new Error('Stop after observing the first range batch');
+    };
+  });
+  await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Tellus Geochemistry' });
+  const aluminium = page.getByRole('checkbox', { name: 'Aluminium Al % (Percentile) DL = 0.01', exact: true });
+  const antimony = page.getByRole('checkbox', { name: 'Antimony Sb mg/kg (Percentile) DL = 0.05', exact: true });
+  await expect(aluminium).toBeVisible();
+  await expect(aluminium).toBeChecked();
+  await expect(antimony).not.toBeChecked();
+  await expect.poll(() => page.evaluate(() => window.__cogMetadataCalls.length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__cogRangeCalls.length)).toBe(32);
+  expect(await page.evaluate(() => window.__cogMetadataCalls[0])).toContain('/Aluminium%20Al');
+  expect(await page.evaluate(() => [...new Set(window.__cogRangeCalls)])).toHaveLength(1);
+
+  await aluminium.uncheck();
+  await antimony.check();
+  await expect.poll(() => page.evaluate(() => window.__cogMetadataCalls.length)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__cogRangeCalls.length)).toBe(64);
+  const requestedUrls = await page.evaluate(() => [...new Set(window.__cogRangeCalls)]);
+  expect(requestedUrls).toHaveLength(2);
+  expect(requestedUrls.some(url => url.includes('/Antimony%20Sb'))).toBe(true);
 });
 
 test('switching between Site Investigations and Tellus Geophysics preserves theme visibility', async ({ page }) => {

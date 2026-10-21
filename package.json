@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/config.test.js tests/json-theme-runtime.test.js tests/startup.test.js",
+    "test": "node --test tests/config.test.js tests/cog-classes.test.js tests/cog-resampling.test.js tests/json-theme-runtime.test.js tests/startup.test.js",
     "test:e2e": "playwright test"
   },
   "devDependencies": {

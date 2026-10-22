@@ -25,6 +25,13 @@ if (window.MaplibreCOGProtocol) {
   });
 }
 const $ = id => document.getElementById(id);
+const advancedModeBtn = $('advancedModeBtn');
+advancedModeBtn.onclick = () => {
+  const enabled = advancedModeBtn.getAttribute('aria-pressed') !== 'true';
+  advancedModeBtn.setAttribute('aria-pressed', String(enabled));
+  document.body.classList.toggle('advanced-mode', enabled);
+  if (!enabled && boxMode) setBox(false);
+};
 const map = new maplibregl.Map({ container: 'map', style: window.MAP_STYLE || CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
 document.querySelectorAll('#aboutPage .lgcollapse').forEach(b => b.onclick = () => {
   b.setAttribute('aria-expanded', String(!b.closest('.lgroup').classList.toggle('collapsed')));
@@ -51,7 +58,7 @@ if (boundsValid) map.addControl({
 }, 'top-right');
 map.addControl(new maplibregl.ScaleControl());
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
-map.addControl(new window.MaplibreTerradrawControl.MaplibreTerradrawControl({
+const terraDrawControl = new window.MaplibreTerradrawControl.MaplibreTerradrawControl({
   modes: [
     'point',
     'linestring',
@@ -68,7 +75,10 @@ map.addControl(new window.MaplibreTerradrawControl.MaplibreTerradrawControl({
     'download'
   ],
   open: true
-}), 'top-right');
+});
+map.addControl(terraDrawControl, 'top-right');
+document.querySelector('.maplibregl-ctrl-top-right button[aria-label="Point"], .maplibregl-ctrl-top-right button[title="Point"]')
+  ?.closest('.maplibregl-ctrl')?.classList.add('advanced-drawing-tools');
 map.addControl({
   onAdd() {
     const container = document.createElement('div');
@@ -3291,6 +3301,7 @@ function renderCogRampLegend(w, legend) {
   const state = w.cogState;
   const range = cogDisplayRange(state);
   legend.replaceChildren();
+  legend.classList.add('advanced-only');
   legend.hidden = !state.ramp;
   if (!state.ramp) return;
   const title = document.createElement('div');
@@ -3337,7 +3348,7 @@ function renderCogRampLegend(w, legend) {
   legend.append(title, bar, values);
 }
 function initializeCogRampControls(w, panel, legend) {
-  const controls = panel.querySelector('.cog-ramp-controls');
+  const controls = panel.querySelector('.cog-ramp-advanced-controls');
   const status = controls.querySelector('.cog-ramp-status');
   const state = w.cogState;
   if (state.controlsInitialized || state.controlsInitializing || !isCogOverlayVisible(w)) return;
@@ -3521,20 +3532,6 @@ function initializeCogRampControls(w, panel, legend) {
       reliefScaleLabel.appendChild(reliefScale);
       controls.appendChild(reliefScaleLabel);
     }
-
-    const copySource = document.createElement('button');
-    copySource.type = 'button';
-    copySource.className = 'cog-source-copy';
-    copySource.textContent = 'Click to copy source COG URL for GIS';
-    copySource.onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(url);
-        toast('COG source URL copied');
-      } catch {
-        window.prompt('Copy this source URL', url);
-      }
-    };
-    controls.appendChild(copySource);
 
     modeSelect.onchange = () => {
       const previousMode = state.mode;
@@ -3771,7 +3768,7 @@ function hillshadePaint() {
   };
 }
 function hillshadeControlsMarkup() {
-  return '<div class="hillshade-settings">' +
+  return '<div class="hillshade-settings advanced-only">' +
     '<label class="trow">Method <select class="hs-method">' + HILLSHADE_METHODS.map(([value, label]) =>
       `<option value="${value}"${hillshadeStyle.method === value ? ' selected' : ''}>${label}</option>`).join('') + '</select></label>' +
     '<label class="trow">Light direction <input class="hs-direction" type="range" min="0" max="359" step="1" value="' + hillshadeStyle.direction + '"><output class="hs-direction-value">' + hillshadeStyle.direction + '°</output></label>' +
@@ -3809,7 +3806,7 @@ function bindHillshadeControls(panel) {
   });
 }
 function contourControlsMarkup() {
-  return '<div class="hillshade-colors">' +
+  return '<div class="hillshade-colors advanced-only">' +
     '<label>Minor <input class="ct-minor" type="color" value="' + esc(contourColors.minor) + '"></label>' +
     '<label>Major <input class="ct-major" type="color" value="' + esc(contourColors.major) + '"></label></div>';
 }
@@ -4152,8 +4149,8 @@ function buildOverlayLegend() {
           ? '<label class="trow">Model <select class="terrain-model">' + terrainModels.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('') + '</select></label>'
           : '';
         d.innerHTML = '<div class="grprow"><span class="cspace"></span><label class="lname"><input type="checkbox"> <span>' + esc(w.name) + '</span></label>' +
-          '<button class="tbtn terrain-tools" type="button" title="Terrain settings" aria-label="Terrain settings" aria-expanded="false">' + ICON_SLIDERS + '</button></div>' +
-          '<div class="lpanel terrain-panel" hidden>' + (modelSelect ? modelSelect : '') + '<label class="trow">Exaggeration <input class="terrain-exaggeration" type="range" min="1" max="3" step="0.1" value="' + terrainExaggeration + '"><span class="tval"></span></label></div>';
+          '<button class="tbtn terrain-tools advanced-only" type="button" title="Terrain settings" aria-label="Terrain settings" aria-expanded="false">' + ICON_SLIDERS + '</button></div>' +
+          '<div class="lpanel terrain-panel advanced-only" hidden>' + (modelSelect ? modelSelect : '') + '<label class="trow">Exaggeration <input class="terrain-exaggeration" type="range" min="1" max="3" step="0.1" value="' + terrainExaggeration + '"><span class="tval"></span></label></div>';
         terrainCb = d.querySelector('input');
         terrainCb.onchange = () => setTerrain3D(terrainCb.checked && !terrainGroupHidden, false);
         const modelPicker = d.querySelector('.terrain-model');
@@ -4203,7 +4200,7 @@ function buildOverlayLegend() {
       cb.onchange = () => setOverlayVisibility(cb.checked);
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(layerIds, on), set: setOverlayVisibility, el: d };
       const cogControls = w.cogState
-        ? '<div class="cog-ramp-controls"><div class="cog-ramp-status" role="status">Enable this layer to load its COG controls.</div></div>'
+        ? '<div class="cog-ramp-controls"><div class="cog-ramp-advanced-controls advanced-only"><div class="cog-ramp-status" role="status">Enable this layer to load its COG controls.</div></div><button class="cog-source-copy" type="button">Click to copy source COG URL for GIS</button></div>'
         : '';
       const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
         w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : cogControls);
@@ -4214,8 +4211,17 @@ function buildOverlayLegend() {
       if (t.infoPanel) d.appendChild(t.infoPanel);
       d.appendChild(t.panel);
       if (w.cogState) {
+        const copySource = t.panel.querySelector('.cog-source-copy');
+        copySource.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(w.cogState.url);
+            toast('COG source URL copied');
+          } catch {
+            window.prompt('Copy this source URL', w.cogState.url);
+          }
+        };
         const legend = document.createElement('div');
-        legend.className = 'cog-ramp-legend';
+        legend.className = 'cog-ramp-legend advanced-only';
         legend.hidden = true;
         d.appendChild(legend);
         w.cogState.controlsPanel = t.panel;

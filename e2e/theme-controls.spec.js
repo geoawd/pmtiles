@@ -18,7 +18,8 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('Terra Draw controls are expanded below Find My Location', async ({ page }) => {
+test('advanced mode shows Terra Draw controls below Find My Location', async ({ page }) => {
+  await page.getByRole('button', { name: 'Advanced mode' }).click();
   const pointButton = page.getByRole('button', { name: 'Point', exact: true });
   const polygonButton = page.getByRole('button', { name: 'Polygon', exact: true });
   const downloadButton = page.getByRole('button', { name: 'Download', exact: true });
@@ -35,6 +36,42 @@ test('Terra Draw controls are expanded below Find My Location', async ({ page })
       [...container.children].indexOf(pointControl) === [...container.children].indexOf(locationControl) + 1;
   });
   expect(drawControlFollowsGeolocate).toBe(true);
+});
+
+test('standard mode hides drawing and advanced COG controls until enabled', async ({ page }) => {
+  const advancedMode = page.getByRole('button', { name: 'Advanced mode' });
+  const pointButton = page.getByRole('button', { name: 'Point', exact: true });
+  const boxButton = page.getByRole('button', { name: 'Select by box' });
+  await expect(advancedMode).toHaveAttribute('aria-pressed', 'false');
+  await expect(pointButton).toBeHidden();
+  await expect(boxButton).toBeVisible();
+  await boxButton.click();
+  await expect(page.locator('body')).toHaveClass(/box-on/);
+  await advancedMode.click();
+  await expect(advancedMode).toHaveAttribute('aria-pressed', 'true');
+  await expect(boxButton).toBeVisible();
+  await expect(pointButton).toBeVisible();
+  await advancedMode.click();
+  await expect(page.locator('body')).not.toHaveClass(/box-on/);
+  await expect(pointButton).toBeHidden();
+
+  await page.evaluate(() => {
+    window.MaplibreCOGProtocol.getCogMetadata = async () => ({
+      bitsPerSample: [16],
+      bbox: [-8, 54, -7, 55],
+      images: [{ isMask: false, zoom: 0 }]
+    });
+    window.MaplibreCOGProtocol.locationValues = async (_url, point) => [point.longitude];
+  });
+  await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Tellus Geochemistry' });
+  const aluminium = page.getByRole('checkbox', { name: /^Aluminium Al %/ });
+  const row = aluminium.locator('xpath=ancestor::*[@data-order-key][1]');
+  await row.locator('.tbtn[aria-label^="Transparency"]').click();
+  await expect(row.locator('.cog-source-copy')).toBeVisible();
+  await expect(row.locator('.cog-ramp-picker-button')).toBeHidden();
+  await advancedMode.click();
+  await expect(row.locator('.cog-ramp-picker-button')).toBeVisible();
+  await expect(row.locator('.cog-ramp-mode-select')).toBeVisible();
 });
 
 test('saved-session prompt offers only Resume and Reset app', async ({ page }) => {

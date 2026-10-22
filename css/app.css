@@ -31,7 +31,10 @@
   .dpage { display: none; width: var(--drawer); height: 100%; flex-direction: column; }
   .dpage.active { display: flex; }
   .dhead { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 14px; }
-  .dhead button { border: 0; background: none; font-size: 18px; line-height: 1; padding: 2px 8px; }
+  .dhead-actions { display: flex; align-items: center; gap: 6px; }
+  .dhead > .dclose { border: 0; background: none; font-size: 18px; line-height: 1; padding: 2px 8px; }
+  #advancedModeBtn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+  #advancedModeBtn[aria-pressed=true] { background: var(--ac); border-color: var(--ac); color: #fff; }
   .dbody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px 12px; }
   .dbody.form { display: flex; flex-direction: column; gap: 6px; }
   .dbody.form select, .dbody.form input[type=text] { width: 100%; padding: 6px 8px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
@@ -367,6 +370,8 @@
   .maplibregl-popup-content th, .maplibregl-popup-content td { position: static; border: none; border-bottom: 1px solid #eee; padding: 2px 0; white-space: normal; max-width: none; overflow: visible; vertical-align: top; word-break: break-word; }
   .maplibregl-popup-content th { background: none; color: #666; font-weight: 600; padding-right: 10px; white-space: nowrap; width: 1%; }
   .maplibregl-popup-content a { color: #234b6b; }
+  body:not(.advanced-mode) .advanced-only,
+  body:not(.advanced-mode) .advanced-drawing-tools { display: none !important; }
 
   /* ---- mobile: menu along the bottom, drawer expands upwards ---- */
   @media (max-width: 700px) {

@@ -376,6 +376,7 @@
 
   /* ---- mobile: menu along the bottom, drawer expands upwards ---- */
   @media (max-width: 700px) {
+    .advanced-drawing-tools { display: none !important; }
     body { flex-direction: column-reverse; }
     #side { flex-direction: column-reverse; border-right: 0; border-top: 1px solid var(--line); }
     #rail { width: auto; height: 52px; flex-direction: row; justify-content: space-around; padding: 4px 0 env(safe-area-inset-bottom, 0); height: calc(52px + env(safe-area-inset-bottom, 0)); }

@@ -38,6 +38,14 @@ test('advanced mode shows Terra Draw controls below Find My Location', async ({ 
   expect(drawControlFollowsGeolocate).toBe(true);
 });
 
+test('advanced mode keeps drawing controls hidden on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Advanced mode' }).click();
+  await expect(page.getByRole('button', { name: 'Point', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Polygon', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeHidden();
+});
+
 test('standard mode hides drawing and advanced COG controls until enabled', async ({ page }) => {
   const advancedMode = page.getByRole('button', { name: 'Advanced mode' });
   const pointButton = page.getByRole('button', { name: 'Point', exact: true });

@@ -142,6 +142,15 @@ test('saved-session prompt offers only Resume and Reset app', async ({ page }) =
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('button')).toHaveText(['Resume', 'Reset app']);
   await expect(dialog.getByRole('button', { name: /Start Over/ })).toHaveCount(0);
+  const resume = dialog.getByRole('button', { name: 'Resume' });
+  const reset = dialog.getByRole('button', { name: 'Reset app' });
+  await expect(resume).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(reset).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(resume).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(reset).toBeFocused();
 });
 
 test('resuming a saved terrain model updates its model dropdown', async ({ page }) => {

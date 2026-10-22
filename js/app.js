@@ -1302,15 +1302,27 @@ function chooseSessionStartup() {
   if (!snapshot) return Promise.resolve({ action: 'start', snapshot: null });
   const dialog = $('sessionRestoreDialog');
   return new Promise(resolve => {
+    const choices = [...dialog.querySelectorAll('[data-session-choice]')];
+    const trapFocus = event => {
+      if (event.key !== 'Tab') return;
+      const index = choices.indexOf(document.activeElement);
+      if (index === -1 || (event.shiftKey ? index === 0 : index === choices.length - 1)) {
+        event.preventDefault();
+        choices[event.shiftKey ? choices.length - 1 : 0].focus();
+      }
+    };
     const finish = event => {
       const button = event.target instanceof Element ? event.target.closest('[data-session-choice]') : null;
       if (!button) return;
       dialog.removeEventListener('click', finish);
+      dialog.removeEventListener('keydown', trapFocus);
       dialog.close();
       resolve({ action: button.dataset.sessionChoice, snapshot });
     };
     dialog.addEventListener('click', finish);
+    dialog.addEventListener('keydown', trapFocus);
     dialog.showModal();
+    choices[0].focus();
   });
 }
 function clearSavedThemeAdditions() {

@@ -121,6 +121,26 @@ test('saved-session prompt offers only Resume and Reset app', async ({ page }) =
   await expect(dialog.getByRole('button', { name: /Start Over/ })).toHaveCount(0);
 });
 
+test('resuming a saved terrain model updates its model dropdown', async ({ page }) => {
+  const savedSession = {
+    version: 1,
+    view: { center: [-6, 54], zoom: 8 },
+    terrain: { enabled: false, model: 'Ardquin_DTM', exaggeration: 1.4 }
+  };
+  await page.addInitScript(snapshot => {
+    localStorage.setItem('mapviewer.session.v1', JSON.stringify(snapshot));
+  }, savedSession);
+  await page.reload();
+  const dialog = page.getByRole('dialog', { name: 'Resume your previous session?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Resume' }).click();
+  await expect(page.locator('#themeSel option').first()).toBeAttached({ timeout: 20_000 });
+
+  await page.getByRole('button', { name: 'Advanced mode' }).click();
+  await page.getByRole('button', { name: 'Terrain settings' }).click();
+  await expect(page.locator('.terrain-model')).toHaveValue('Ardquin_DTM');
+});
+
 test('shared map view URLs bypass the saved-session prompt', async ({ page }) => {
   await page.evaluate(() => {
     localStorage.setItem('mapviewer.session.v1', JSON.stringify({

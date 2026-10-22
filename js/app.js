@@ -5009,6 +5009,8 @@ function setTerrainModel(id) {
     : !!tc.hillshadeVisible;
   if (hillshadeLayerExists) map.removeLayer('hillshade');
   activeTerrainModel = model;
+  const modelPicker = $('legend').querySelector('.terrain-model');
+  if (modelPicker) modelPicker.value = model.id;
   if (terrainOn) {
     addTerrainModelSource(model, 'terrain');
     map.setTerrain({ source: model.sourceId, exaggeration: terrainExaggeration });

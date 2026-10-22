@@ -946,6 +946,16 @@ let activeThemeName = null;
 let activeThemeAll = false;
 let themeOverlays = [];
 let themeBaseOverlays = [];
+const themeOverlayVisibility = new Map();
+function captureThemeOverlayVisibility(name = activeThemeName) {
+  if (!name) return;
+  const visibility = new Map();
+  themeOverlays.forEach(id => {
+    const checkbox = ctl.ov[id]?.el.querySelector('.grprow input[type="checkbox"]');
+    if (checkbox) visibility.set(id, checkbox.checked);
+  });
+  themeOverlayVisibility.set(name, visibility);
+}
 const profileStorageSuffix = window.CONFIG_PROFILE === 'internal' ? '.internal' : '';
 const THEME_ADDITIONS_KEY = `mapviewer.theme-additions${profileStorageSuffix}.v1`;
 const SESSION_STATE_KEY = `mapviewer.session${profileStorageSuffix}.v1`;
@@ -1046,6 +1056,7 @@ function clearSavedThemeAdditions() {
   }
 }
 function sessionSnapshot() {
+  captureThemeOverlayVisibility();
   const rowFor = key => [...$('legend').querySelectorAll('[data-order-key]')]
     .find(row => row.dataset.orderKey === key);
   const vector = Object.fromEntries(Object.entries(ctl.data).map(([id, control]) => {
@@ -1095,6 +1106,8 @@ function sessionSnapshot() {
     },
     vector,
     overlays,
+    themeOverlayVisibility: Object.fromEntries([...themeOverlayVisibility].map(([name, visibility]) =>
+      [name, Object.fromEntries(visibility)])),
     basemaps,
     transparency,
     cogs,
@@ -1311,12 +1324,22 @@ function resolveThemeGroup(name, seen = new Set()) {
 ///////////////////////////////////////////////////////////////////////////
 function setupThemes(preferredThemeName = null, honorSharedJsonState = true) {
   const list = CONFIG.themes || [];
+  const savedThemeVisibility = startupSessionSnapshot?.themeOverlayVisibility;
+  if (savedThemeVisibility && typeof savedThemeVisibility === 'object' && !Array.isArray(savedThemeVisibility)) {
+    Object.entries(savedThemeVisibility).forEach(([name, saved]) => {
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+      themeOverlayVisibility.set(name, new Map(
+        Object.entries(saved).filter(([, visible]) => typeof visible === 'boolean')
+      ));
+    });
+  }
   $('themeBar').hidden = !list.length;
   if (!list.length) return;
   const sel = $('themeSel');
   sel.innerHTML = list.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
   const apply = i => {
     const t = list[i];
+    captureThemeOverlayVisibility();
     activeThemeName = t.name;
     activeThemeAll = !t.layers && !t.overlays && !t.datasets && !t.groups && !t.jsonTheme;
     const additions = themeAdditions.get(t.name) || { layers: new Set(), overlays: new Set(), overlayGroups: new Set() };
@@ -1350,11 +1373,16 @@ function setupThemes(preferredThemeName = null, honorSharedJsonState = true) {
       const inTheme = activeThemeAll || themeOverlays.includes(id);
       o.theme(inTheme); o.el.hidden = !inTheme;
     });
-    overlayGroups.forEach(group => {
-      const cogIds = group.ids.filter(id => overlayConfigs.find(overlay => overlay.id === id)?.cog);
-      const enabledId = cogIds.length > 1 ? cogIds[0] : group.ids[0];
-      group.ids.forEach(id => ctl.ov[id]?.set(id === enabledId));
-    });
+    const savedVisibility = themeOverlayVisibility.get(t.name);
+    if (savedVisibility) {
+      themeOverlays.forEach(id => {
+        if (savedVisibility.has(id)) ctl.ov[id]?.set(savedVisibility.get(id));
+      });
+    } else {
+      overlayGroups.forEach((group, groupIndex) => {
+        group.ids.forEach((id, layerIndex) => ctl.ov[id]?.set(groupIndex === 0 && layerIndex === 0));
+      });
+    }
     additions.layers.forEach(id => ctl.data[id]?.set(true));
     const disabledAddedRasterOverlays = addedRasterOverlaysToDisable(additions, overlayConfigs);
     additions.overlays.forEach(id => ctl.ov[id]?.set(!disabledAddedRasterOverlays.has(id)));

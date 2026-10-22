@@ -230,3 +230,47 @@ test('switching between Site Investigations and Tellus Geophysics preserves them
     )
   )).toBe(true);
 });
+
+test('overlay groups default to one layer and preserve visibility per theme', async ({ page }) => {
+  await page.evaluate(() => {
+    window.MaplibreCOGProtocol.getCogMetadata = async () => ({ bitsPerSample: [16, 16, 16] });
+  });
+  const theme = page.getByRole('combobox', { name: 'Theme' });
+  const groupLayers = name => page.locator(
+    `#legend .lgroup[data-group-name="${name}"] .lgbody .grprow input[type="checkbox"]`
+  );
+  await theme.selectOption({ label: 'Tellus Geophysics' });
+
+  const magnetics = groupLayers('Tellus Magnetics');
+  const electromagnetics = groupLayers('Tellus Electromagnetics');
+  const radiometrics = groupLayers('Tellus Radiometrics');
+  await expect(magnetics.first()).toBeChecked();
+  expect(await electromagnetics.evaluateAll(inputs => inputs.map(input => input.checked))).toEqual(
+    new Array(await electromagnetics.count()).fill(false)
+  );
+  expect(await radiometrics.evaluateAll(inputs => inputs.map(input => input.checked))).toEqual(
+    new Array(await radiometrics.count()).fill(false)
+  );
+  await magnetics.first().uncheck();
+  await magnetics.nth(1).check();
+
+  await theme.selectOption({ label: 'Tellus Geochemistry' });
+  const geochemistry = groupLayers('Tellus Soils A Aqua Regia');
+  await expect(geochemistry.first()).toBeChecked();
+  await geochemistry.first().uncheck();
+  await geochemistry.nth(1).check();
+
+  await theme.selectOption({ label: 'Tellus Geophysics' });
+  await expect(magnetics.first()).not.toBeChecked();
+  await expect(magnetics.nth(1)).toBeChecked();
+  expect(await electromagnetics.evaluateAll(inputs => inputs.map(input => input.checked))).toEqual(
+    new Array(await electromagnetics.count()).fill(false)
+  );
+  expect(await radiometrics.evaluateAll(inputs => inputs.map(input => input.checked))).toEqual(
+    new Array(await radiometrics.count()).fill(false)
+  );
+
+  await theme.selectOption({ label: 'Tellus Geochemistry' });
+  await expect(geochemistry.first()).not.toBeChecked();
+  await expect(geochemistry.nth(1)).toBeChecked();
+});

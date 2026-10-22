@@ -3,7 +3,7 @@
 ///////////////////////////////////////////////////////////////////////////
 
 window.CONFIG = {
-  title: 'Geoscience Data Viewer',
+  title: 'Sliabh Data',
   showZoom: true, // development helper: show the current zoom level beside the grid reference; set to false for production
   // Map reports are available in Advanced mode. Add report types and fields here.
   notifications: [

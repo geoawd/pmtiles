@@ -205,8 +205,9 @@ function startNotificationPick(config, button) {
   notificationPicking = config;
   notificationButtons.get(config.id)?.setAttribute('aria-pressed', 'true');
   map.getCanvas().style.cursor = 'crosshair';
-  toast(`Click the map to place: ${config.title}. Press Esc to cancel.`);
+  toast(`Click the map to place: ${config.title}, or focus the map and press Enter or Space to use its centre. Press Esc to cancel.`);
   button.blur();
+  map.getCanvas().focus();
 }
 
 function selectNotificationLocation(lngLat) {
@@ -4639,15 +4640,20 @@ const boxEl = document.createElement('div');
 boxEl.id = 'selbox';
 map.getCanvasContainer().appendChild(boxEl);
 const mapBox = map.getCanvasContainer();
+let boxKeyboardStart = null;
 
 function setBox(on) {
   if (on) cancelNotificationPick();
   boxMode = on;
   boxBtn.classList.toggle('active', on);
+  boxBtn.setAttribute('aria-pressed', String(on));
   document.body.classList.toggle('box-on', on);
   map.getCanvas().style.cursor = on ? 'crosshair' : '';
   mapBox.style.touchAction = on ? 'none' : '';
+  boxKeyboardStart = null;
+  $('boxTip').textContent = 'Drag a box on the map, or focus the map and press Enter to set the first corner';
   on ? (map.dragPan.disable(), map.touchZoomRotate.disable()) : (map.dragPan.enable(), map.touchZoomRotate.enable());
+  if (on) map.getCanvas().focus();
 }
 boxBtn.onclick = () => {
   if (!boxMode && tool && isMobile()) openTool(tool);   // get the menu out of the way on phones
@@ -4664,7 +4670,34 @@ $('globeBtn').onclick = () => {
   globe.setAttribute('aria-label', label);
   scheduleSessionSave();
 };
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && boxMode) setBox(false); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (notificationPicking) cancelNotificationPick();
+  if (boxMode) setBox(false);
+});
+map.getCanvas().addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  if (notificationPicking) {
+    e.preventDefault();
+    selectNotificationLocation(map.getCenter());
+    return;
+  }
+  if (!boxMode) return;
+  e.preventDefault();
+  if (!boxKeyboardStart) {
+    boxKeyboardStart = map.getCenter();
+    $('boxTip').textContent = 'First corner set. Pan with the arrow keys, then press Enter again to select the box.';
+    return;
+  }
+  const first = map.project(boxKeyboardStart);
+  const second = map.project(map.getCenter());
+  if (Math.hypot(first.x - second.x, first.y - second.y) < 3) {
+    $('boxTip').textContent = 'Pan the map with the arrow keys to the opposite corner, then press Enter again.';
+    return;
+  }
+  boxKeyboardStart = null;
+  runSelection(first, second);
+});
 
 const pos = e => { const r = mapBox.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
 const drawBox = cur => Object.assign(boxEl.style, {
@@ -5023,10 +5056,15 @@ function setTerrainModel(id) {
 ///////////////////////////////////////////////////////////////////////////
 function setTerrain3D(on, syncCheckbox = true, tilt = true) {
   const tc = CONFIG.terrain;
-  if (!tc || !activeTerrainModel) { if (terrainCb) terrainCb.checked = false; return toast('3D view needs a DTM configured in CONFIG.terrain.models.'); }
+  if (!tc || !activeTerrainModel) {
+    if (terrainCb) terrainCb.checked = false;
+    $('terrainBtn').setAttribute('aria-pressed', 'false');
+    return toast('3D view needs a DTM configured in CONFIG.terrain.models.');
+  }
   terrainOn = on;
   if (terrainCb && syncCheckbox) terrainCb.checked = on;
   $('terrainBtn').classList.toggle('active', on);
+  $('terrainBtn').setAttribute('aria-pressed', String(on));
   if (on) { addTerrainModelSource(activeTerrainModel, 'terrain'); map.setTerrain({ source: activeTerrainModel.sourceId, exaggeration: terrainExaggeration }); if (tilt) map.easeTo({ pitch: tc.pitch ?? 60, duration: 900 }); }
   else { map.setTerrain(null); map.easeTo({ pitch: 0, bearing: 0, duration: 600 }); }   // everything is draped on the surface automatically
 }

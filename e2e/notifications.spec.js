@@ -50,6 +50,21 @@ test('configured map notifications are advanced-only and collect a six-digit gri
     .not.toContain('Please attach borehole reports, logs, and photos to your email.');
 });
 
+test('keyboard users can select a notification point from the map centre', async ({ page }) => {
+  await page.getByRole('button', { name: 'Advanced mode' }).click();
+  const button = page.getByRole('button', { name: 'Report a borehole' });
+  await button.click();
+
+  const canvas = page.locator('#map canvas');
+  await expect(canvas).toBeFocused();
+  await expect(page.locator('#toast')).toContainText('press Enter or Space');
+  await canvas.press('Enter');
+
+  await expect(page.getByRole('dialog', { name: 'Borehole notification' })).toBeVisible();
+  await expect(page.locator('#notificationLocation')).toContainText(/Irish Grid E \d{6} N \d{6}/);
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('notification forms are selected from configuration', async ({ page }) => {
   await page.getByRole('button', { name: 'Advanced mode' }).click();
   await page.getByRole('button', { name: 'Report a landslide' }).click();

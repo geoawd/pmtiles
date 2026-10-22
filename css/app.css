@@ -5,7 +5,8 @@
   button, input, select { font: inherit; color: inherit; }
   button { padding: 6px 11px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; cursor: pointer; }
   button:hover { background: #f1f4f6; }
-  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ac); outline-offset: 1px; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a[href]:focus-visible { outline: 2px solid var(--ac); outline-offset: 1px; }
+  .maplibregl-canvas:focus-visible { outline: 2px solid var(--ac); outline-offset: -3px; }
   button.primary { background: var(--ac); border-color: var(--ac); color: #fff; }
   #sessionRestoreDialog { width: min(440px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 8px; padding: 22px; color: var(--ink); box-shadow: 0 8px 32px rgba(0,0,0,.28); }
   #sessionRestoreDialog::backdrop { background: rgba(14,22,28,.58); }

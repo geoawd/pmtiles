@@ -18,6 +18,29 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test('app title and main landmark identify Sliabh Data', async ({ page }) => {
+  await expect(page).toHaveTitle('Sliabh Data');
+  await expect(page.getByRole('main')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Select by box' })).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('keyboard users can select a map box', async ({ page }) => {
+  const boxButton = page.getByRole('button', { name: 'Select by box' });
+  const canvas = page.locator('#map canvas');
+  await boxButton.click();
+  await expect(boxButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(canvas).toBeFocused();
+
+  await canvas.press('Enter');
+  await expect(page.locator('#boxTip')).toContainText('First corner set');
+  await canvas.press('ArrowRight');
+  await page.waitForTimeout(400);
+  await canvas.press('Enter');
+
+  await expect(boxButton).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('body')).not.toHaveClass(/box-on/);
+});
+
 test('advanced mode shows Terra Draw controls below Find My Location', async ({ page }) => {
   await page.getByRole('button', { name: 'Advanced mode' }).click();
   const pointButton = page.getByRole('button', { name: 'Point', exact: true });
@@ -139,6 +162,13 @@ test('resuming a saved terrain model updates its model dropdown', async ({ page 
   await page.getByRole('button', { name: 'Advanced mode' }).click();
   await page.getByRole('button', { name: 'Terrain settings' }).click();
   await expect(page.locator('.terrain-model')).toHaveValue('Ardquin_DTM');
+
+  const terrainButton = page.getByRole('button', { name: '3D terrain view' });
+  await expect(terrainButton).toHaveAttribute('aria-pressed', 'false');
+  await terrainButton.click();
+  await expect(terrainButton).toHaveAttribute('aria-pressed', 'true');
+  await terrainButton.click();
+  await expect(terrainButton).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('shared map view URLs bypass the saved-session prompt', async ({ page }) => {

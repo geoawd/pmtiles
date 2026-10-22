@@ -1492,7 +1492,7 @@ function filterAddDataPicker(resetExpansion = false) {
     const labels = [...fieldset.querySelectorAll('.add-data-items > label')];
     let matchingItems = 0, selectedItems = 0;
     labels.forEach(label => {
-      const matches = !query || groupMatches || label.dataset.itemName.toLowerCase().includes(query);
+      const matches = !query || label.dataset.itemName.toLowerCase().includes(query);
       label.hidden = !matches;
       if (matches) {
         matchingItems++;

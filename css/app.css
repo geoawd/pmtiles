@@ -179,6 +179,7 @@
   #addDataList .add-data-items { padding: 2px 8px 4px; }
   #addDataList .add-data-items[hidden] { display: none; }
   #addDataList label { display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 2px 0; cursor: pointer; }
+  #addDataList label[hidden] { display: none; }
   #addDataList input { flex: none; }
   .add-data-actions { justify-content: flex-end; border-top: 1px solid var(--line); border-bottom: 0; }
   .lgroup { margin-bottom: 10px; }

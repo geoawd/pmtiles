@@ -74,6 +74,22 @@ test('standard mode hides drawing and advanced COG controls until enabled', asyn
   await expect(row.locator('.cog-ramp-mode-select')).toBeVisible();
 });
 
+test('add-data search only shows matching layers inside matching groups', async ({ page }) => {
+  await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Site Investigations' });
+  await page.getByRole('button', { name: 'Add data to the current theme' }).click();
+  const search = page.getByRole('searchbox', { name: 'Search groups and layers' });
+  const magneticsGroup = page.locator('#addDataList fieldset[data-group-name="Tellus Magnetics"]');
+  await search.fill('Tellus Magnetics');
+  await expect(magneticsGroup).toBeVisible();
+  await expect(magneticsGroup.locator('.add-data-items > label:visible')).toHaveCount(0);
+
+  await search.fill('Magnetics RTP');
+  await expect(magneticsGroup.locator('.add-data-items > label:visible')).toHaveText([
+    'Magnetics RTP',
+    'Magnetics RTP Tilt Derivative'
+  ]);
+});
+
 test('saved-session prompt offers only Resume and Reset app', async ({ page }) => {
   await page.evaluate(() => {
     localStorage.setItem('mapviewer.session.v1', JSON.stringify({

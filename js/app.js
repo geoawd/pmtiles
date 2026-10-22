@@ -3329,7 +3329,6 @@ function renderCogRampLegend(w, legend) {
   const state = w.cogState;
   const range = cogDisplayRange(state);
   legend.replaceChildren();
-  legend.classList.add('advanced-only');
   legend.hidden = !state.ramp;
   if (!state.ramp) return;
   const title = document.createElement('div');
@@ -3337,6 +3336,7 @@ function renderCogRampLegend(w, legend) {
   const units = document.createElement('span');
   units.textContent = state.legendUnits;
   const rampName = document.createElement('span');
+  rampName.className = 'cog-ramp-legend-ramp-name';
   rampName.textContent = state.ramp;
   title.append(units, rampName);
   if (state.mode === 'classes') {
@@ -4249,7 +4249,7 @@ function buildOverlayLegend() {
           }
         };
         const legend = document.createElement('div');
-        legend.className = 'cog-ramp-legend advanced-only';
+        legend.className = 'cog-ramp-legend';
         legend.hidden = true;
         d.appendChild(legend);
         w.cogState.controlsPanel = t.panel;

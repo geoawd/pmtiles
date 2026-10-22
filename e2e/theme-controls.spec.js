@@ -76,8 +76,16 @@ test('standard mode hides drawing and advanced COG controls until enabled', asyn
   const row = aluminium.locator('xpath=ancestor::*[@data-order-key][1]');
   await row.locator('.tbtn[aria-label^="Transparency"]').click();
   await expect(row.locator('.cog-source-copy')).toBeVisible();
+  const rampLegend = row.locator('.cog-ramp-legend');
+  await expect(rampLegend).toBeVisible();
+  await expect(rampLegend.locator('.cog-ramp-legend-title')).toContainText('%');
+  await expect(rampLegend.locator('.cog-ramp-legend-bar, .cog-ramp-class-legend')).toBeVisible();
+  await expect(rampLegend.locator('.cog-ramp-legend-ramp-name')).toBeHidden();
   await expect(row.locator('.cog-ramp-picker-button')).toBeHidden();
+  await expect(row.locator('.cog-ramp-mode-select')).toBeHidden();
+  await expect(row.locator('.cog-hillshade-toggle')).toBeHidden();
   await advancedMode.click();
+  await expect(rampLegend.locator('.cog-ramp-legend-ramp-name')).toBeVisible();
   await expect(row.locator('.cog-ramp-picker-button')).toBeVisible();
   await expect(row.locator('.cog-ramp-mode-select')).toBeVisible();
 });

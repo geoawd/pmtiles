@@ -290,6 +290,7 @@
   .cog-source-copy { justify-self: start; padding: 0; border: 0; background: none; color: #234b6b; text-align: left; text-decoration: underline; cursor: pointer; }
   .cog-ramp-legend { display: grid; gap: 3px; margin: 3px 0 7px 22px; font-size: 11px; }
   .cog-ramp-legend-title { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; font-weight: 600; }
+  body:not(.advanced-mode) .cog-ramp-legend-ramp-name { display: none; }
   .cog-ramp-legend-bar { height: 12px; border: 1px solid #65717a; border-radius: 2px; }
   .cog-ramp-legend-values { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); }
   .cog-ramp-class-legend { display: grid; gap: 3px; }

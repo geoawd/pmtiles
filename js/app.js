@@ -321,15 +321,15 @@ map.addControl(new maplibregl.ScaleControl());
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), 'top-right');
 const terraDrawControl = new window.MaplibreTerradrawControl.MaplibreTerradrawControl({
   modes: [
-    'point',
+    //'point',
     'linestring',
-    'polygon',
-    'rectangle',
-    'circle',
+    //'polygon',
+    //'rectangle',
+    //'circle',
     'freehand',
-    'angled-rectangle',
-    'sensor',
-    'sector',
+    //'angled-rectangle',
+    //'sensor',
+    //'sector',
     'select',
     'delete-selection',
     'delete',

@@ -16,6 +16,8 @@ On mobile, the tools drawer opens at 45% of the viewport height, can be dragged 
 
 The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume** or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, per-theme overlay visibility, COG display settings, and terrain settings. Reset app clears the saved session and manually added layers, and clears filter state encoded in the URL hash. Internal profile state uses separate storage keys; the public profile retains its existing keys. Nothing is sent to a server.
 
+Shared links take precedence over the saved-session prompt. Map-view hashes in `#zoom/latitude/longitude` format initialize the map to that view and drop a location pin; encoded JSON theme links restore their map/filter state without prompting or adding a pin.
+
 ## Directory Layout
 
 - `config/config.js`: public profile's `window.CONFIG` for map defaults, vector datasets, basemaps, raster overlays, themes, legend metadata, search, and terrain.

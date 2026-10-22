@@ -121,6 +121,58 @@ test('saved-session prompt offers only Resume and Reset app', async ({ page }) =
   await expect(dialog.getByRole('button', { name: /Start Over/ })).toHaveCount(0);
 });
 
+test('shared map view URLs bypass the saved-session prompt', async ({ page }) => {
+  await page.evaluate(() => {
+    localStorage.setItem('mapviewer.session.v1', JSON.stringify({
+      version: 1,
+      view: { center: [-6, 54], zoom: 8 }
+    }));
+  });
+  await page.goto('/index.html#8.00/54.221977/-6.081146');
+
+  await expect(page.locator('#themeSel option').first()).toBeAttached({ timeout: 20_000 });
+  await expect(page.getByRole('combobox', { name: 'Theme' })).toBeVisible();
+  await expect(page.locator('#zoomLevel')).toHaveText('Zoom 8.0');
+  const parsedMapHash = await page.evaluate(async () => {
+    const { parseMapViewHash } = await import('/js/shared-links.js');
+    return parseMapViewHash(location.hash);
+  });
+  expect(parsedMapHash).toMatchObject({ center: [-6.081146, 54.221977], zoom: 8 });
+  await expect(page.locator('#map .maplibregl-marker')).toHaveCount(1);
+  const markerFill = await page.locator('#map .maplibregl-marker path').first()
+    .evaluate(path => getComputedStyle(path).fill);
+  expect(markerFill).toBe('rgb(31, 42, 51)');
+  await expect(page.getByRole('dialog', { name: 'Resume your previous session?' })).toBeHidden();
+  await expect(page).toHaveURL(/#8\.00\/54\.221977\/-6\.081146$/);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('mapviewer.session.v1'))).not.toBeNull();
+});
+
+test('encoded JSON theme share URLs bypass the saved-session prompt', async ({ page }) => {
+  const state = {
+    search: {},
+    range: {},
+    dropdown: {},
+    special: null,
+    hiddenTabs: [],
+    map: { lat: 54.221977, lng: -6.081146, zoom: 8 }
+  };
+  const encoded = Buffer.from(JSON.stringify(state), 'utf8').toString('base64');
+  await page.evaluate(() => {
+    localStorage.setItem('mapviewer.session.v1', JSON.stringify({
+      version: 1,
+      view: { center: [-6, 54], zoom: 8 }
+    }));
+  });
+  await page.goto(`/index.html#${encoded}`);
+
+  await expect(page.locator('#themeSel option').first()).toBeAttached({ timeout: 20_000 });
+  await expect(page.getByRole('combobox', { name: 'Theme' })).toBeVisible();
+  await expect(page.locator('#zoomLevel')).toHaveText('Zoom 8.0');
+  await expect(page.locator('#map .maplibregl-marker')).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Resume your previous session?' })).toBeHidden();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('mapviewer.session.v1'))).not.toBeNull();
+});
+
 test('Site Investigations exposes its vector layers and updates their map visibility', async ({ page }) => {
   await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Site Investigations' });
 

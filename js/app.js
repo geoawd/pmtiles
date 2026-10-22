@@ -2,6 +2,7 @@ import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-
 import { COLORCET_RAMPS } from './colorcet-ramps.js';
 import { cogClassColorLut, cogClassRampColors, validateCogClasses } from './cog-classes.js';
 import { cogResamplingUrl } from './cog-resampling.js';
+import { isJsonThemeShareState, jsonThemeMapView, parseMapViewHash } from './shared-links.js';
 import { buildJsonFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, jsonGeometryCenter, jsonGeometryIntersectsBounds, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
 
 window.maplibregl = maplibregl;
@@ -25,6 +26,10 @@ if (window.MaplibreCOGProtocol) {
   });
 }
 const $ = id => document.getElementById(id);
+const sharedJsonHashState = decodeJsonThemeHash();
+const mapHashView = parseMapViewHash(location.hash);
+const sharedMapView = mapHashView || jsonThemeMapView(sharedJsonHashState);
+const isSharedUrl = !!sharedMapView || isJsonThemeShareState(sharedJsonHashState);
 const advancedModeBtn = $('advancedModeBtn');
 advancedModeBtn.onclick = () => {
   const enabled = advancedModeBtn.getAttribute('aria-pressed') !== 'true';
@@ -33,7 +38,15 @@ advancedModeBtn.onclick = () => {
   if (!enabled) cancelNotificationPick();
   if (!enabled && boxMode) setBox(false);
 };
-const map = new maplibregl.Map({ container: 'map', style: window.MAP_STYLE || CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
+const map = new maplibregl.Map({
+  container: 'map',
+  style: window.MAP_STYLE || CONFIG.styleUrl,
+  center: sharedMapView?.center || CONFIG.center,
+  zoom: sharedMapView?.zoom ?? CONFIG.zoom,
+  bearing: sharedMapView?.bearing || 0,
+  pitch: sharedMapView?.pitch || 0,
+  maxPitch: 80
+});
 const notificationDialog = $('notificationDialog');
 const notificationForm = $('notificationForm');
 const notificationFields = $('notificationFields');
@@ -1283,6 +1296,7 @@ function readSessionSnapshot() {
   }
 }
 function chooseSessionStartup() {
+  if (isSharedUrl) return Promise.resolve({ action: 'shared', snapshot: null });
   const snapshot = readSessionSnapshot();
   if (!snapshot) return Promise.resolve({ action: 'start', snapshot: null });
   const dialog = $('sessionRestoreDialog');
@@ -1650,7 +1664,7 @@ function setupThemes(preferredThemeName = null, honorSharedJsonState = true) {
   };
   sel.onchange = () => apply(sel.value);
   const firstJsonTheme = list.findIndex(theme => theme.jsonTheme && theme.jsonConfig);
-  const hasSharedJsonState = honorSharedJsonState && !!location.hash && firstJsonTheme >= 0;
+  const hasSharedJsonState = honorSharedJsonState && isJsonThemeShareState(sharedJsonHashState) && firstJsonTheme >= 0;
   const preferredIndex = list.findIndex(theme => theme.name === preferredThemeName);
   const initialTheme = preferredIndex >= 0 ? preferredIndex
     : hasSharedJsonState ? firstJsonTheme : (CONFIG.defaultTheme || 0);
@@ -4550,18 +4564,26 @@ function buildBasemapLegend() {
 
 map.on('load', async () => {
   const startup = await chooseSessionStartup();
+  if (mapHashView) {
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--ac').trim() || '#1f2a33';
+    new maplibregl.Marker({ color })
+      .setLngLat(mapHashView.center)
+      .addTo(map);
+  }
   startupSessionSnapshot = startup.action === 'resume' ? startup.snapshot : null;
   if (startup.action === 'reset') clearSavedThemeAdditions();
   if (startup.action === 'reset') {
     history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
-  if (startup.action !== 'resume') {
+  if (startup.action === 'resume') {
+    prepareSessionSnapshot(startupSessionSnapshot);
+  } else if (startup.action !== 'shared') {
     try { localStorage.removeItem(SESSION_STATE_KEY); }
     catch (error) {
       console.warn('Previous map session could not be cleared:', error);
       toast('Previous map session could not be cleared in this browser.');
     }
-  } else prepareSessionSnapshot(startupSessionSnapshot);
+  }
   const style = map.getStyle();
   originalStyleIds = new Set([...Object.keys(style.sources), ...style.layers.map(l => l.id)]);
   const firstData = style.layers.find(l => l['source-layer']);
@@ -4585,7 +4607,7 @@ map.on('load', async () => {
   buildOverlayLegend();
   buildBasemapLegend();
   enableLegendReordering();
-  setupThemes(startupSessionSnapshot?.theme || null, startup.action === 'start');
+  setupThemes(startupSessionSnapshot?.theme || null, startup.action === 'start' || startup.action === 'shared');
   if (startupSessionSnapshot) restoreSessionSnapshot(startupSessionSnapshot);
   initializeVisibleCogControls();
   sessionPersistenceReady = true;

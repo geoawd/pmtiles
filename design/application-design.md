@@ -8,6 +8,10 @@ The layers panel starts in standard mode and includes an **Advanced mode** toggl
 
 On mobile, the tools drawer opens at 45% of the viewport height, can be dragged up to 80%, and closes when dragged down below 25%. Globe and print controls are hidden at mobile widths.
 
+## Map Notifications
+
+`CONFIG.notifications` defines report types shown as map controls in Advanced mode, in the bottom-right corner above the attribution. Each entry has a unique `id`, button `label`, dialog `title`, optional email `recipient`, optional bold `reminderText`, and `fields` array. The reminder is configured separately for each report type, displayed below the message preview, and is not included in copied or emailed text. Fields support `text`, `email`, `tel`, `number`, `date`, `select`, and `textarea`; select options can be strings or `{ value, label }` objects. Optional field settings include `required`, `min`, `max`, `step`, `placeholder`, and `rows`. Selecting a report type arms point-picking on the map; the generated form includes the Irish Grid reference with six-digit easting and northing, WGS84 coordinates, and a map link. Users can edit the generated message, copy it, or open it in their email client. Report types, reminders, and recipients can be added or changed in the profile config without changing the form implementation.
+
 ## Session Recovery
 
 The viewer autosaves a versioned session snapshot to browser `localStorage`. On a later visit, it offers **Resume** or **Reset app** when a valid snapshot exists. Resume restores the active theme, map view, layer visibility and transparency, per-theme overlay visibility, COG display settings, and terrain settings. Reset app clears the saved session and manually added layers, and clears filter state encoded in the URL hash. Internal profile state uses separate storage keys; the public profile retains its existing keys. Nothing is sent to a server.

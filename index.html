@@ -153,6 +153,22 @@
     <button type="button" data-session-choice="reset">Reset app</button>
   </div>
 </dialog>
+<dialog id="notificationDialog" aria-labelledby="notificationTitle">
+  <form id="notificationForm">
+    <h2 id="notificationTitle"></h2>
+    <p id="notificationLocation"></p>
+    <div id="notificationFields"></div>
+    <label for="notificationPreview">Message preview (you can edit before copying)</label>
+    <textarea id="notificationPreview" rows="8"></textarea>
+    <p id="notificationReminder"></p>
+    <div id="notificationStatus" role="status" aria-live="polite"></div>
+    <div class="notification-actions">
+      <button id="notificationEmail" class="primary" type="button">Open in email</button>
+      <button id="notificationCopy" type="button">Copy text</button>
+      <button id="notificationClose" type="button">Close</button>
+    </div>
+  </form>
+</dialog>
 <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js" integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.0.1/dist/maplibre-gl-terradraw.umd.js" integrity="sha384-yhep21kwwLZCV1aZfqjNeKXP6znnkpri9p4oBTDjwidlfwiFuxVEDfhTtTaEi1Ag" crossorigin="anonymous"></script>
 <!--<script src="https://unpkg.com/@geomatico/maplibre-cog-protocol@0.10.0/dist/index.js" integrity="sha384-t1PE7x+ltzMRnLBdPzuY56UPewCP9ZGEFqEuaEa579Mq61Q0psO4LM+lNUFP5WqP" crossorigin="anonymous"></script>-->

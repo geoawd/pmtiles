@@ -13,6 +13,20 @@
   #sessionRestoreDialog p { margin: 0 0 18px; color: var(--muted); }
   .session-restore-actions { display: grid; gap: 8px; }
   .session-restore-actions button { min-height: 40px; text-align: left; }
+  #notificationDialog { width: min(520px, calc(100vw - 32px)); max-height: min(90dvh, 760px); border: 1px solid var(--line); border-radius: 8px; padding: 0; color: var(--ink); box-shadow: 0 8px 32px rgba(0,0,0,.28); }
+  #notificationDialog::backdrop { background: rgba(14,22,28,.58); }
+  #notificationForm { display: grid; max-height: min(90dvh, 760px); gap: 10px; overflow-y: auto; padding: 18px; }
+  #notificationForm h2 { margin: 0; font-size: 18px; }
+  #notificationLocation { margin: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px; background: #f3f4f5; font-variant-numeric: tabular-nums; }
+  #notificationFields { display: grid; gap: 8px; }
+  #notificationFields label, #notificationForm > label { display: grid; gap: 3px; font-weight: 600; }
+  #notificationFields input, #notificationFields select, #notificationFields textarea,
+  #notificationPreview { width: 100%; min-width: 0; padding: 7px 8px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
+  #notificationPreview { min-height: 140px; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+  #notificationReminder { margin: 0; font-weight: 600; }
+  #notificationStatus { min-height: 1.3em; color: var(--muted); }
+  .notification-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .notification-actions button { min-height: 36px; }
 
   /* ---- left menu: narrow rail + drawer that expands beside it ---- */
   #side { display: flex; flex: none; background: #fff; border-right: 1px solid var(--line); z-index: 6; }
@@ -298,6 +312,9 @@
   .cog-ramp-class-swatch { height: 12px; border: 1px solid #65717a; border-radius: 2px; }
   .maplibregl-ctrl-zoomall { display: grid; place-items: center; }
   .maplibregl-ctrl-zoomall svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .notification-control-group { display: grid; gap: 1px; }
+  .maplibregl-ctrl-group.notification-control-group button { width: auto; min-width: 120px; height: auto; min-height: 30px; padding: 5px 8px; text-align: left; white-space: nowrap; }
+  .maplibregl-ctrl-group.notification-control-group button[aria-pressed=true] { background: var(--ac); color: #fff; }
 
   /* ---- location search ---- */
   #geo { position: absolute; left: 8px; top: 8px; z-index: 6; width: min(360px, calc(100% - 64px)); }

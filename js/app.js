@@ -30,9 +30,256 @@ advancedModeBtn.onclick = () => {
   const enabled = advancedModeBtn.getAttribute('aria-pressed') !== 'true';
   advancedModeBtn.setAttribute('aria-pressed', String(enabled));
   document.body.classList.toggle('advanced-mode', enabled);
+  if (!enabled) cancelNotificationPick();
   if (!enabled && boxMode) setBox(false);
 };
 const map = new maplibregl.Map({ container: 'map', style: window.MAP_STYLE || CONFIG.styleUrl, center: CONFIG.center, zoom: CONFIG.zoom, maxPitch: 80 });
+const notificationDialog = $('notificationDialog');
+const notificationForm = $('notificationForm');
+const notificationFields = $('notificationFields');
+const notificationPreview = $('notificationPreview');
+const notificationStatus = $('notificationStatus');
+const notificationButtons = new Map();
+const notificationTypes = Array.isArray(CONFIG.notifications) ? CONFIG.notifications : [];
+let notificationPicking = null;
+let currentNotification = null;
+let notificationLocation = null;
+let notificationMarker = null;
+let notificationPreviewEdited = false;
+
+function validateNotificationConfig(config) {
+  const supportedTypes = new Set(['text', 'email', 'tel', 'number', 'date', 'select', 'textarea']);
+  const ids = new Set();
+  notificationTypes.forEach((notification, index) => {
+    if (!notification || typeof notification.id !== 'string' || !notification.id ||
+        typeof notification.label !== 'string' || !notification.label ||
+        typeof notification.title !== 'string' || !notification.title ||
+        !Array.isArray(notification.fields)) {
+      throw new Error(`Invalid CONFIG.notifications entry at index ${index}.`);
+    }
+    if (ids.has(notification.id)) throw new Error(`Duplicate notification id "${notification.id}".`);
+    ids.add(notification.id);
+    const names = new Set();
+    notification.fields.forEach((field, fieldIndex) => {
+      if (!field || typeof field.name !== 'string' || !field.name ||
+          typeof field.label !== 'string' || !field.label ||
+          !supportedTypes.has(field.type) ||
+          (field.type === 'select' && (!Array.isArray(field.options) || !field.options.length))) {
+        throw new Error(`Invalid field ${fieldIndex} in notification "${notification.id}".`);
+      }
+      if (names.has(field.name)) throw new Error(`Duplicate field "${field.name}" in notification "${notification.id}".`);
+      names.add(field.name);
+    });
+    if (notification.recipient !== undefined && typeof notification.recipient !== 'string') {
+      throw new Error(`Invalid recipient for notification "${notification.id}".`);
+    }
+    if (notification.reminderText !== undefined && typeof notification.reminderText !== 'string') {
+      throw new Error(`Invalid reminder text for notification "${notification.id}".`);
+    }
+  });
+  return config;
+}
+
+function notificationGridReference(location) {
+  const [easting, northing] = proj4('EPSG:4326', 'EPSG:29902', [location.lng, location.lat]);
+  if (easting < 0 || easting >= 500000 || northing < 0 || northing >= 500000) {
+    return { text: 'Outside Irish Grid', easting: null, northing: null };
+  }
+  const e = String(Math.floor(easting)).padStart(6, '0');
+  const n = String(Math.floor(northing)).padStart(6, '0');
+  return { text: `Irish Grid E ${e} N ${n}`, easting: e, northing: n };
+}
+
+function renderNotificationFields(config) {
+  notificationFields.replaceChildren();
+  config.fields.forEach((field, index) => {
+    const id = `notification-field-${index}`;
+    const label = document.createElement('label');
+    label.htmlFor = id;
+    label.append(document.createTextNode(field.label));
+    let input;
+    if (field.type === 'textarea') {
+      input = document.createElement('textarea');
+      input.rows = Number.isInteger(field.rows) ? field.rows : 3;
+    } else if (field.type === 'select') {
+      input = document.createElement('select');
+      field.options.forEach(option => {
+        const value = typeof option === 'string' ? option : option.value;
+        const text = typeof option === 'string' ? option : option.label;
+        if (typeof value !== 'string' || typeof text !== 'string') {
+          throw new Error(`Invalid option in notification field "${field.name}".`);
+        }
+        const optionElement = document.createElement('option');
+        optionElement.value = value;
+        optionElement.textContent = text;
+        input.appendChild(optionElement);
+      });
+    } else {
+      input = document.createElement('input');
+      input.type = field.type;
+      ['min', 'max', 'step', 'placeholder'].forEach(attribute => {
+        if (field[attribute] !== undefined) input.setAttribute(attribute, String(field[attribute]));
+      });
+    }
+    input.id = id;
+    input.name = field.name;
+    input.required = field.required === true;
+    label.appendChild(input);
+    notificationFields.appendChild(label);
+  });
+}
+
+function notificationFieldValues(config) {
+  return config.fields.map(field => {
+    const control = notificationForm.elements.namedItem(field.name);
+    const value = control?.value?.trim() || '-';
+    return `${field.label}: ${value}`;
+  });
+}
+
+function buildNotificationMessage() {
+  if (!currentNotification || !notificationLocation) return '';
+  const location = notificationGridReference(notificationLocation);
+  const lat = notificationLocation.lat.toFixed(6);
+  const lng = notificationLocation.lng.toFixed(6);
+  const mapUrl = new URL(window.location.href);
+  mapUrl.hash = `${map.getZoom().toFixed(2)}/${lat}/${lng}`;
+  return [
+    currentNotification.title,
+    '',
+    `Grid reference: ${location.text}`,
+    `WGS84 latitude/longitude: ${lat}, ${lng}`,
+    ...notificationFieldValues(currentNotification),
+    `Map link: ${mapUrl.href}`
+  ].join('\n');
+}
+
+function refreshNotificationPreview() {
+  if (!notificationPreviewEdited) notificationPreview.value = buildNotificationMessage();
+}
+
+function openNotificationDialog(config) {
+  currentNotification = config;
+  if (notificationForm.dataset.notificationId !== config.id) {
+    renderNotificationFields(config);
+    notificationForm.dataset.notificationId = config.id;
+    notificationPreviewEdited = false;
+  }
+  const grid = notificationGridReference(notificationLocation);
+  const ll = `${notificationLocation.lat.toFixed(6)}, ${notificationLocation.lng.toFixed(6)}`;
+  $('notificationTitle').textContent = config.title;
+  $('notificationLocation').textContent = `${grid.text} · WGS84 ${ll}`;
+  $('notificationReminder').textContent = config.reminderText || '';
+  notificationStatus.textContent = '';
+  refreshNotificationPreview();
+  notificationDialog.showModal();
+}
+
+function cancelNotificationPick() {
+  if (!notificationPicking) return;
+  notificationButtons.get(notificationPicking.id)?.setAttribute('aria-pressed', 'false');
+  notificationPicking = null;
+  map.getCanvas().style.cursor = '';
+}
+
+function startNotificationPick(config, button) {
+  if (notificationPicking?.id === config.id) {
+    cancelNotificationPick();
+    return;
+  }
+  cancelNotificationPick();
+  if (boxMode) setBox(false);
+  notificationPicking = config;
+  notificationButtons.get(config.id)?.setAttribute('aria-pressed', 'true');
+  map.getCanvas().style.cursor = 'crosshair';
+  toast(`Click the map to place: ${config.title}. Press Esc to cancel.`);
+  button.blur();
+}
+
+function selectNotificationLocation(lngLat) {
+  const config = notificationPicking;
+  if (!config) return;
+  cancelNotificationPick();
+  notificationLocation = { lng: lngLat.lng, lat: lngLat.lat };
+  currentNotification = config;
+  notificationMarker?.remove();
+  notificationMarker = new maplibregl.Marker({ draggable: true, color: '#a4372b' })
+    .setLngLat(lngLat)
+    .addTo(map);
+  notificationMarker.on('dragend', () => {
+    const point = notificationMarker.getLngLat();
+    notificationLocation = { lng: point.lng, lat: point.lat };
+    if (notificationDialog.open) {
+      const grid = notificationGridReference(notificationLocation);
+      $('notificationLocation').textContent =
+        `${grid.text} · WGS84 ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`;
+      notificationPreviewEdited = false;
+      refreshNotificationPreview();
+    }
+  });
+  notificationMarker.getElement().addEventListener('click', event => {
+    event.stopPropagation();
+    openNotificationDialog(config);
+  });
+  openNotificationDialog(config);
+}
+
+validateNotificationConfig(CONFIG);
+if (notificationTypes.length) map.addControl({
+  onAdd() {
+    const group = document.createElement('div');
+    group.className = 'maplibregl-ctrl maplibregl-ctrl-group notification-control-group advanced-only';
+    notificationTypes.forEach(config => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = config.label;
+      button.title = `${config.label} (Advanced mode)`;
+      button.setAttribute('aria-label', config.label);
+      button.setAttribute('aria-pressed', 'false');
+      button.onclick = () => startNotificationPick(config, button);
+      notificationButtons.set(config.id, button);
+      group.appendChild(button);
+    });
+    return group;
+  },
+  onRemove() {
+    notificationButtons.clear();
+  }
+}, 'bottom-right');
+notificationForm.addEventListener('input', event => {
+  if (event.target === notificationPreview) notificationPreviewEdited = true;
+  else notificationPreviewEdited = false;
+  refreshNotificationPreview();
+});
+notificationForm.addEventListener('submit', event => event.preventDefault());
+$('notificationClose').onclick = () => notificationDialog.close();
+notificationDialog.addEventListener('close', () => { notificationPreviewEdited = false; });
+$('notificationEmail').onclick = () => {
+  if (!notificationForm.reportValidity()) return;
+  const grid = notificationGridReference(notificationLocation);
+  const subject = `${currentNotification.title} - ${grid.text}`;
+  const mailto = `mailto:${encodeURIComponent(currentNotification.recipient || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(notificationPreview.value)}`;
+  if (mailto.length > 1900) {
+    notificationStatus.textContent = 'Message is too long for an email link. Use Copy text instead.';
+    return;
+  }
+  window.location.href = mailto;
+  notificationStatus.textContent = 'If no email opened, use Copy text and paste the message into an email.';
+};
+$('notificationCopy').onclick = async () => {
+  if (!notificationForm.reportValidity()) return;
+  try {
+    await navigator.clipboard.writeText(notificationPreview.value);
+    notificationStatus.textContent = 'Copied. Paste the message into an email.';
+  } catch {
+    notificationPreview.focus();
+    notificationPreview.select();
+    notificationStatus.textContent = 'Press Ctrl+C (or Cmd+C) to copy the selected text.';
+  }
+};
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') cancelNotificationPick();
+});
 document.querySelectorAll('#aboutPage .lgcollapse').forEach(b => b.onclick = () => {
   b.setAttribute('aria-expanded', String(!b.closest('.lgroup').classList.toggle('collapsed')));
 });
@@ -510,6 +757,10 @@ async function linkedFor(layer, parents) {
 
 let boxMode = false, justBoxed = false;
 map.on('click', async e => {
+  if (notificationPicking) {
+    selectNotificationLocation(e.lngLat);
+    return;
+  }
   if (boxMode || justBoxed) return;
   const feats = queryData(around(e.point));
   const geometryConfig = activeJsonThemeState.active ? activeJsonThemeConfig() : null;
@@ -4368,6 +4619,7 @@ map.getCanvasContainer().appendChild(boxEl);
 const mapBox = map.getCanvasContainer();
 
 function setBox(on) {
+  if (on) cancelNotificationPick();
   boxMode = on;
   boxBtn.classList.toggle('active', on);
   document.body.classList.toggle('box-on', on);

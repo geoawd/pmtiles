@@ -40,6 +40,22 @@ test('application configuration has valid defaults and project bounds', () => {
   assert.ok(Number.isInteger(config.defaultTheme));
   assert.ok(config.defaultTheme >= 0 && config.defaultTheme < config.themes.length);
 
+  assert.ok(Array.isArray(config.notifications));
+  assertUniqueIds(config.notifications, 'notification types');
+  for (const notification of config.notifications) {
+    assert.ok(typeof notification.label === 'string' && notification.label.length > 0);
+    assert.ok(typeof notification.title === 'string' && notification.title.length > 0);
+    assert.ok(Array.isArray(notification.fields));
+    assert.ok(notification.reminderText === undefined || typeof notification.reminderText === 'string');
+    assert.equal(new Set(notification.fields.map(field => field.name)).size, notification.fields.length);
+    for (const field of notification.fields) {
+      assert.ok(typeof field.name === 'string' && field.name.length > 0);
+      assert.ok(typeof field.label === 'string' && field.label.length > 0);
+      assert.ok(['text', 'email', 'tel', 'number', 'date', 'select', 'textarea'].includes(field.type));
+      if (field.type === 'select') assert.ok(Array.isArray(field.options) && field.options.length > 0);
+    }
+  }
+
   assert.ok(Array.isArray(config.bounds) && config.bounds.length === 2);
   for (const coordinate of config.bounds.flat()) {
     assert.ok(Number.isFinite(coordinate));

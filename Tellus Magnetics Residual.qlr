@@ -1,0 +1,509 @@
+<!DOCTYPE qgis-layer-definition>
+<qlr>
+  <layer-tree-group checked="Qt::Checked" expanded="1" groupLayer="" name="" wms-group-request-mode="Normal">
+    <customproperties>
+      <Option/>
+    </customproperties>
+    <layer-tree-layer checked="Qt::Checked" expanded="1" id="Tellus_Magnetics_Residual_b11e9231_3ffd_4f0e_a09f_e3683fd42f1f" legend_exp="" legend_split_behavior="0" name="Tellus Magnetics Residual" patch_size="-1,-1" providerKey="gdal" source="../../../../_qgis/GSNI/TELLUS/GEOPHYSICS/GRIDS/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif">
+      <customproperties>
+        <Option/>
+      </customproperties>
+    </layer-tree-layer>
+  </layer-tree-group>
+  <maplayers>
+    <maplayer autoRefreshMode="Disabled" autoRefreshTime="0" hasScaleBasedVisibilityFlag="0" layerType="Raster" legendPlaceholderImage="" maxScale="0" minScale="1e+08" refreshOnNotifyEnabled="0" refreshOnNotifyMessage="" styleCategories="AllStyleCategories" type="raster">
+      <extent>
+        <xmin>188195</xmin>
+        <ymin>307510</ymin>
+        <xmax>369215</xmax>
+        <ymax>453670</ymax>
+      </extent>
+      <wgs84extent>
+        <xmin>-8.186747123766418</xmin>
+        <ymin>53.98921606403431639</ymin>
+        <xmax>-5.3363165141086597</xmax>
+        <ymax>55.32985724595620525</ymax>
+      </wgs84extent>
+      <id>Tellus_Magnetics_Residual_b11e9231_3ffd_4f0e_a09f_e3683fd42f1f</id>
+      <datasource>../../../../_qgis/GSNI/TELLUS/GEOPHYSICS/GRIDS/TELLUS_Magnetic (Minc from V3 gdb, cellsize 35m) MAG_RES_cog.tif</datasource>
+      <layername>Tellus Magnetics Residual</layername>
+      <srs>
+        <spatialrefsys nativeFormat="Wkt">
+          <wkt>PROJCRS["TM65 / Irish Grid",BASEGEOGCRS["TM65",DATUM["TM65",ELLIPSOID["Airy Modified 1849",6377340.189,299.3249646,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4299]],CONVERSION["Irish Grid",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",53.5,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",-8,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",1.000035,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",200000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",250000,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Engineering survey, topographic mapping."],AREA["Ireland - onshore."],BBOX[51.39,-10.56,55.43,-5.93]],ID["EPSG",29902]]</wkt>
+          <proj4>+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 +a=6377340.189 +rf=299.3249646 +towgs84=482.5,-130.6,564.6,-1.042,-0.214,-0.631,8.15 +units=m +no_defs</proj4>
+          <srsid>2564</srsid>
+          <srid>29902</srid>
+          <authid>EPSG:29902</authid>
+          <description>TM65 / Irish Grid</description>
+          <projectionacronym>tmerc</projectionacronym>
+          <ellipsoidacronym>EPSG:7002</ellipsoidacronym>
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <resourceMetadata>
+        <identifier></identifier>
+        <parentidentifier></parentidentifier>
+        <language></language>
+        <type>dataset</type>
+        <title></title>
+        <abstract></abstract>
+        <links/>
+        <dates/>
+        <fees></fees>
+        <encoding></encoding>
+        <crs>
+          <spatialrefsys nativeFormat="Wkt">
+            <wkt>PROJCRS["TM65 / Irish Grid",BASEGEOGCRS["TM65",DATUM["TM65",ELLIPSOID["Airy Modified 1849",6377340.189,299.3249646,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],ID["EPSG",4299]],CONVERSION["Irish Grid",METHOD["Transverse Mercator",ID["EPSG",9807]],PARAMETER["Latitude of natural origin",53.5,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8801]],PARAMETER["Longitude of natural origin",-8,ANGLEUNIT["degree",0.0174532925199433],ID["EPSG",8802]],PARAMETER["Scale factor at natural origin",1.000035,SCALEUNIT["unity",1],ID["EPSG",8805]],PARAMETER["False easting",200000,LENGTHUNIT["metre",1],ID["EPSG",8806]],PARAMETER["False northing",250000,LENGTHUNIT["metre",1],ID["EPSG",8807]]],CS[Cartesian,2],AXIS["(E)",east,ORDER[1],LENGTHUNIT["metre",1]],AXIS["(N)",north,ORDER[2],LENGTHUNIT["metre",1]],USAGE[SCOPE["Engineering survey, topographic mapping."],AREA["Ireland - onshore."],BBOX[51.39,-10.56,55.43,-5.93]],ID["EPSG",29902]]</wkt>
+            <proj4>+proj=tmerc +lat_0=53.5 +lon_0=-8 +k=1.000035 +x_0=200000 +y_0=250000 +a=6377340.189 +rf=299.3249646 +towgs84=482.5,-130.6,564.6,-1.042,-0.214,-0.631,8.15 +units=m +no_defs</proj4>
+            <srsid>2564</srsid>
+            <srid>29902</srid>
+            <authid>EPSG:29902</authid>
+            <description>TM65 / Irish Grid</description>
+            <projectionacronym>tmerc</projectionacronym>
+            <ellipsoidacronym>EPSG:7002</ellipsoidacronym>
+            <geographicflag>false</geographicflag>
+          </spatialrefsys>
+        </crs>
+        <extent/>
+      </resourceMetadata>
+      <provider>gdal</provider>
+      <noData>
+        <noDataList bandNo="1" useSrcNoData="1"/>
+      </noData>
+      <map-layer-style-manager current="default">
+        <map-layer-style name="default"/>
+      </map-layer-style-manager>
+      <flags>
+        <Identifiable>1</Identifiable>
+        <Removable>1</Removable>
+        <Searchable>1</Searchable>
+        <Private>0</Private>
+      </flags>
+      <temporal bandNumber="1" enabled="0" fetchMode="0" mode="0">
+        <fixedRange>
+          <start></start>
+          <end></end>
+        </fixedRange>
+      </temporal>
+      <elevation band="1" enabled="0" mode="RepresentsElevationSurface" symbology="Line" zoffset="0" zscale="1">
+        <data-defined-properties>
+          <Option type="Map">
+            <Option name="name" type="QString" value=""/>
+            <Option name="properties"/>
+            <Option name="type" type="QString" value="collection"/>
+          </Option>
+        </data-defined-properties>
+        <profileLineSymbol>
+          <symbol alpha="1" clip_to_extent="1" force_rhr="0" frame_rate="10" is_animated="0" name="" type="line">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option name="name" type="QString" value=""/>
+                <Option name="properties"/>
+                <Option name="type" type="QString" value="collection"/>
+              </Option>
+            </data_defined_properties>
+            <layer class="SimpleLine" enabled="1" id="{7bbb9e08-ca42-480f-a991-68eb9f12bfc0}" locked="0" pass="0">
+              <Option type="Map">
+                <Option name="align_dash_pattern" type="QString" value="0"/>
+                <Option name="capstyle" type="QString" value="square"/>
+                <Option name="customdash" type="QString" value="5;2"/>
+                <Option name="customdash_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="customdash_unit" type="QString" value="MM"/>
+                <Option name="dash_pattern_offset" type="QString" value="0"/>
+                <Option name="dash_pattern_offset_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="dash_pattern_offset_unit" type="QString" value="MM"/>
+                <Option name="draw_inside_polygon" type="QString" value="0"/>
+                <Option name="joinstyle" type="QString" value="bevel"/>
+                <Option name="line_color" type="QString" value="183,72,75,255,rgb:0.7176471,0.282353,0.2941177,1"/>
+                <Option name="line_style" type="QString" value="solid"/>
+                <Option name="line_width" type="QString" value="0.6"/>
+                <Option name="line_width_unit" type="QString" value="MM"/>
+                <Option name="offset" type="QString" value="0"/>
+                <Option name="offset_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="offset_unit" type="QString" value="MM"/>
+                <Option name="ring_filter" type="QString" value="0"/>
+                <Option name="trim_distance_end" type="QString" value="0"/>
+                <Option name="trim_distance_end_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="trim_distance_end_unit" type="QString" value="MM"/>
+                <Option name="trim_distance_start" type="QString" value="0"/>
+                <Option name="trim_distance_start_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="trim_distance_start_unit" type="QString" value="MM"/>
+                <Option name="tweak_dash_pattern_on_corners" type="QString" value="0"/>
+                <Option name="use_custom_dash" type="QString" value="0"/>
+                <Option name="width_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option name="name" type="QString" value=""/>
+                  <Option name="properties"/>
+                  <Option name="type" type="QString" value="collection"/>
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileLineSymbol>
+        <profileFillSymbol>
+          <symbol alpha="1" clip_to_extent="1" force_rhr="0" frame_rate="10" is_animated="0" name="" type="fill">
+            <data_defined_properties>
+              <Option type="Map">
+                <Option name="name" type="QString" value=""/>
+                <Option name="properties"/>
+                <Option name="type" type="QString" value="collection"/>
+              </Option>
+            </data_defined_properties>
+            <layer class="SimpleFill" enabled="1" id="{4bd176b8-1726-490e-936a-201310f7fb7a}" locked="0" pass="0">
+              <Option type="Map">
+                <Option name="border_width_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="color" type="QString" value="183,72,75,255,rgb:0.7176471,0.282353,0.2941177,1"/>
+                <Option name="joinstyle" type="QString" value="bevel"/>
+                <Option name="offset" type="QString" value="0,0"/>
+                <Option name="offset_map_unit_scale" type="QString" value="3x:0,0,0,0,0,0"/>
+                <Option name="offset_unit" type="QString" value="MM"/>
+                <Option name="outline_color" type="QString" value="35,35,35,255,rgb:0.1372549,0.1372549,0.1372549,1"/>
+                <Option name="outline_style" type="QString" value="no"/>
+                <Option name="outline_width" type="QString" value="0.26"/>
+                <Option name="outline_width_unit" type="QString" value="MM"/>
+                <Option name="style" type="QString" value="solid"/>
+              </Option>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option name="name" type="QString" value=""/>
+                  <Option name="properties"/>
+                  <Option name="type" type="QString" value="collection"/>
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </profileFillSymbol>
+      </elevation>
+      <customproperties>
+        <Option type="Map">
+          <Option name="WMSBackgroundLayer" type="bool" value="false"/>
+          <Option name="WMSPublishDataSourceUrl" type="bool" value="false"/>
+          <Option name="embeddedWidgets/count" type="int" value="0"/>
+          <Option name="identify/format" type="QString" value="Value"/>
+        </Option>
+      </customproperties>
+      <mapTip enabled="1"></mapTip>
+      <pipe-data-defined-properties>
+        <Option type="Map">
+          <Option name="name" type="QString" value=""/>
+          <Option name="properties"/>
+          <Option name="type" type="QString" value="collection"/>
+        </Option>
+      </pipe-data-defined-properties>
+      <pipe>
+        <provider>
+          <resampling enabled="false" maxOversampling="2" zoomedInResamplingMethod="nearestNeighbour" zoomedOutResamplingMethod="nearestNeighbour"/>
+        </provider>
+        <rasterrenderer alphaBand="-1" band="1" classificationMax="235.2215285" classificationMin="-363.3898449" nodataColor="" opacity="1" type="singlebandpseudocolor">
+          <rasterTransparency/>
+          <minMaxOrigin>
+            <limits>StdDev</limits>
+            <extent>WholeRaster</extent>
+            <statAccuracy>Estimated</statAccuracy>
+            <cumulativeCutLower>0.02</cumulativeCutLower>
+            <cumulativeCutUpper>0.98</cumulativeCutUpper>
+            <stdDevFactor>2</stdDevFactor>
+          </minMaxOrigin>
+          <rastershader>
+            <colorrampshader classificationMode="3" clip="0" colorRampType="INTERPOLATED" labelPrecision="4" maximumValue="235.22152850000001" minimumValue="-363.38984490000001">
+              <colorramp name="[source]" type="gradient">
+                <Option type="Map">
+                  <Option name="color1" type="QString" value="0,0,255,255,rgb:0,0,1,1"/>
+                  <Option name="color2" type="QString" value="255,0,0,255,rgb:1,0,0,1"/>
+                  <Option name="direction" type="QString" value="ccw"/>
+                  <Option name="discrete" type="QString" value="0"/>
+                  <Option name="info_authors" type="QString" value="GRASS Development Team"/>
+                  <Option name="info_cpt-city-gradient" type="QString" value="&lt;cpt-city>/grass/bcyr.svg"/>
+                  <Option name="info_cpt-city-license" type="QString" value="&lt;cpt-city>/grass/COPYING.xml"/>
+                  <Option name="info_license/informal" type="QString" value="GPL"/>
+                  <Option name="info_license/url" type="QString" value="http://www.gnu.org/copyleft/gpl.html"/>
+                  <Option name="info_license/year" type="QString" value="2009"/>
+                  <Option name="info_src/link" type="QString" value="https://svn.osgeo.org/grass/grass/trunk/lib/gis/colors/"/>
+                  <Option name="rampType" type="QString" value="gradient"/>
+                  <Option name="spec" type="QString" value="rgb"/>
+                  <Option name="stops" type="QString" value="0.3333;0,255,255,255,rgb:0,1,1,1;rgb;ccw:0.6667;255,255,0,255,rgb:1,1,0,1;rgb;ccw"/>
+                </Option>
+              </colorramp>
+              <item alpha="255" color="#0000ff" label="-1289.2909" value="-1289.2908935547"/>
+              <item alpha="255" color="#0003ff" label="-675.6597" value="-675.6596836599998"/>
+              <item alpha="255" color="#0006ff" label="-573.1213" value="-573.1213492791785"/>
+              <item alpha="255" color="#0009ff" label="-515.9498" value="-515.9497907702331"/>
+              <item alpha="255" color="#000cff" label="-475.2479" value="-475.2478508159626"/>
+              <item alpha="255" color="#000fff" label="-438.0246" value="-438.0246456749345"/>
+              <item alpha="255" color="#0012ff" label="-410.1269" value="-410.12686871579206"/>
+              <item alpha="255" color="#0015ff" label="-385.0999" value="-385.09992323107315"/>
+              <item alpha="255" color="#0018ff" label="-363.5305" value="-363.5304942929713"/>
+              <item alpha="255" color="#001bff" label="-345.1480" value="-345.14804900201216"/>
+              <item alpha="255" color="#001eff" label="-329.8847" value="-329.8846889049943"/>
+              <item alpha="255" color="#0021ff" label="-313.2453" value="-313.2453242173159"/>
+              <item alpha="255" color="#0024ff" label="-299.0492" value="-299.0492429315582"/>
+              <item alpha="255" color="#0027ff" label="-287.0747" value="-287.0747141614851"/>
+              <item alpha="255" color="#002aff" label="-274.9442" value="-274.944231131715"/>
+              <item alpha="255" color="#002dff" label="-263.0037" value="-263.00365158824275"/>
+              <item alpha="255" color="#0030ff" label="-252.6958" value="-252.69581766159877"/>
+              <item alpha="255" color="#0033ff" label="-241.7673" value="-241.76734943616043"/>
+              <item alpha="255" color="#0036ff" label="-232.7560" value="-232.75595160033163"/>
+              <item alpha="255" color="#0039ff" label="-223.6607" value="-223.66074161133224"/>
+              <item alpha="255" color="#003cff" label="-214.9326" value="-214.932607634953"/>
+              <item alpha="255" color="#003fff" label="-207.3662" value="-207.3661737563175"/>
+              <item alpha="255" color="#0042ff" label="-200.2697" value="-200.26972448343554"/>
+              <item alpha="255" color="#0045ff" label="-194.9758" value="-194.9757669603855"/>
+              <item alpha="255" color="#0048ff" label="-189.6617" value="-189.6616520840414"/>
+              <item alpha="255" color="#004bff" label="-185.0085" value="-185.00848621308"/>
+              <item alpha="255" color="#004eff" label="-180.5834" value="-180.58341670834238"/>
+              <item alpha="255" color="#0051ff" label="-177.3466" value="-177.34657013462993"/>
+              <item alpha="255" color="#0054ff" label="-174.0323" value="-174.0322768877345"/>
+              <item alpha="255" color="#0057ff" label="-170.9418" value="-170.9418363537377"/>
+              <item alpha="255" color="#005aff" label="-168.3235" value="-168.3235022521569"/>
+              <item alpha="255" color="#005dff" label="-165.7975" value="-165.797467610397"/>
+              <item alpha="255" color="#0060ff" label="-163.4391" value="-163.43905727497827"/>
+              <item alpha="255" color="#0063ff" label="-161.0594" value="-161.05942867293402"/>
+              <item alpha="255" color="#0066ff" label="-159.1020" value="-159.10204357673615"/>
+              <item alpha="255" color="#0069ff" label="-156.9611" value="-156.9611204742282"/>
+              <item alpha="255" color="#006cff" label="-154.8998" value="-154.8997658715657"/>
+              <item alpha="255" color="#006fff" label="-153.2458" value="-153.2458019881119"/>
+              <item alpha="255" color="#0072ff" label="-151.6459" value="-151.6459446845529"/>
+              <item alpha="255" color="#0075ff" label="-149.9548" value="-149.95484883450445"/>
+              <item alpha="255" color="#0078ff" label="-148.6637" value="-148.66371731034565"/>
+              <item alpha="255" color="#007bff" label="-147.2898" value="-147.28983454634772"/>
+              <item alpha="255" color="#007fff" label="-145.9679" value="-145.96793653558234"/>
+              <item alpha="255" color="#0082ff" label="-144.4922" value="-144.49220609178224"/>
+              <item alpha="255" color="#0085ff" label="-143.2700" value="-143.27003393415612"/>
+              <item alpha="255" color="#0088ff" label="-142.0022" value="-142.00224250328552"/>
+              <item alpha="255" color="#008bff" label="-140.9668" value="-140.96679109196361"/>
+              <item alpha="255" color="#008eff" label="-139.6131" value="-139.61306568125974"/>
+              <item alpha="255" color="#0091ff" label="-138.3177" value="-138.31769050377602"/>
+              <item alpha="255" color="#0094ff" label="-137.0276" value="-137.02761989294868"/>
+              <item alpha="255" color="#0097ff" label="-135.7280" value="-135.7280010621398"/>
+              <item alpha="255" color="#009aff" label="-134.4623" value="-134.46233145793167"/>
+              <item alpha="255" color="#009dff" label="-133.2317" value="-133.23167199365548"/>
+              <item alpha="255" color="#00a0ff" label="-132.0190" value="-132.01904805601112"/>
+              <item alpha="255" color="#00a3ff" label="-130.8128" value="-130.81278959835413"/>
+              <item alpha="255" color="#00a6ff" label="-129.5917" value="-129.59167835405947"/>
+              <item alpha="255" color="#00a9ff" label="-128.4501" value="-128.45013560961024"/>
+              <item alpha="255" color="#00acff" label="-127.4508" value="-127.45075525155153"/>
+              <item alpha="255" color="#00afff" label="-126.2583" value="-126.25828866720121"/>
+              <item alpha="255" color="#00b2ff" label="-124.9979" value="-124.99792362964945"/>
+              <item alpha="255" color="#00b5ff" label="-123.8776" value="-123.87759915182573"/>
+              <item alpha="255" color="#00b8ff" label="-122.7785" value="-122.7784929406273"/>
+              <item alpha="255" color="#00bbff" label="-121.7727" value="-121.77274710258098"/>
+              <item alpha="255" color="#00beff" label="-120.8498" value="-120.84975250437378"/>
+              <item alpha="255" color="#00c1ff" label="-119.7040" value="-119.70396610659941"/>
+              <item alpha="255" color="#00c4ff" label="-118.7598" value="-118.75975324176693"/>
+              <item alpha="255" color="#00c7ff" label="-117.5588" value="-117.55879935076655"/>
+              <item alpha="255" color="#00caff" label="-116.4003" value="-116.40028199301673"/>
+              <item alpha="255" color="#00cdff" label="-115.2375" value="-115.23752098194223"/>
+              <item alpha="255" color="#00d0ff" label="-114.1066" value="-114.10658737080553"/>
+              <item alpha="255" color="#00d3ff" label="-112.8144" value="-112.81439493331573"/>
+              <item alpha="255" color="#00d6ff" label="-111.8787" value="-111.87866937513331"/>
+              <item alpha="255" color="#00d9ff" label="-110.8475" value="-110.84746161713633"/>
+              <item alpha="255" color="#00dcff" label="-109.9955" value="-109.9955482121245"/>
+              <item alpha="255" color="#00dfff" label="-108.8370" value="-108.83703085437492"/>
+              <item alpha="255" color="#00e2ff" label="-107.8493" value="-107.84932054296019"/>
+              <item alpha="255" color="#00e5ff" label="-106.6760" value="-106.67595039857292"/>
+              <item alpha="255" color="#00e8ff" label="-105.5864" value="-105.58639240735602"/>
+              <item alpha="255" color="#00ebff" label="-104.5340" value="-104.53396638273352"/>
+              <item alpha="255" color="#00eeff" label="-103.3309" value="-103.33089066507046"/>
+              <item alpha="255" color="#00f1ff" label="-102.2689" value="-102.26891642046667"/>
+              <item alpha="255" color="#00f4ff" label="-101.2515" value="-101.25150053577636"/>
+              <item alpha="255" color="#00f7ff" label="-100.3476" value="-100.34760237753221"/>
+              <item alpha="255" color="#00faff" label="-99.4416" value="-99.44158239262538"/>
+              <item alpha="255" color="#00fdff" label="-98.5345" value="-98.53450149438731"/>
+              <item alpha="255" color="#01fffe" label="-97.6996" value="-97.69956270267585"/>
+              <item alpha="255" color="#04fffb" label="-96.8392" value="-96.83916199101395"/>
+              <item alpha="255" color="#07fff8" label="-95.9628" value="-95.96284757938292"/>
+              <item alpha="255" color="#0afff5" label="-95.1788" value="-95.17883262757232"/>
+              <item alpha="255" color="#0dfff2" label="-94.3959" value="-94.3958785890934"/>
+              <item alpha="255" color="#10ffef" label="-93.5365" value="-93.5365387907625"/>
+              <item alpha="255" color="#13ffec" label="-92.6942" value="-92.6941736057322"/>
+              <item alpha="255" color="#16ffe9" label="-91.9324" value="-91.93243783387857"/>
+              <item alpha="255" color="#19ffe6" label="-91.1389" value="-91.13887466208666"/>
+              <item alpha="255" color="#1cffe3" label="-90.3538" value="-90.35379879694506"/>
+              <item alpha="255" color="#1fffe0" label="-89.6578" value="-89.65783965163018"/>
+              <item alpha="255" color="#22ffdd" label="-88.8102" value="-88.8101698999435"/>
+              <item alpha="255" color="#25ffda" label="-88.0113" value="-88.01130216149522"/>
+              <item alpha="255" color="#28ffd7" label="-87.3493" value="-87.34929224278108"/>
+              <item alpha="255" color="#2bffd4" label="-86.6448" value="-86.64484579081613"/>
+              <item alpha="255" color="#2effd1" label="-85.9956" value="-85.99556683207743"/>
+              <item alpha="255" color="#31ffce" label="-85.3092" value="-85.30915590674408"/>
+              <item alpha="255" color="#34ffcb" label="-84.5368" value="-84.53681100157769"/>
+              <item alpha="255" color="#37ffc8" label="-83.8281" value="-83.8281208962876"/>
+              <item alpha="255" color="#3affc5" label="-83.1184" value="-83.11836987766628"/>
+              <item alpha="255" color="#3dffc2" label="-82.3885" value="-82.38846150575068"/>
+              <item alpha="255" color="#40ffbf" label="-81.7530" value="-81.75297442031865"/>
+              <item alpha="255" color="#43ffbc" label="-81.0708" value="-81.07080714831022"/>
+              <item alpha="255" color="#46ffb9" label="-80.4268" value="-80.4268327562279"/>
+              <item alpha="255" color="#49ffb6" label="-79.7256" value="-79.72556904425664"/>
+              <item alpha="255" color="#4cffb3" label="-79.0742" value="-79.07416825885548"/>
+              <item alpha="255" color="#4fffb0" label="-78.4323" value="-78.43231569343561"/>
+              <item alpha="255" color="#52ffad" label="-77.8106" value="-77.8106204813098"/>
+              <item alpha="255" color="#55ffaa" label="-77.1921" value="-77.1921080091779"/>
+              <item alpha="255" color="#58ffa7" label="-76.5407" value="-76.54070722377651"/>
+              <item alpha="255" color="#5bffa4" label="-75.9445" value="-75.94447393160135"/>
+              <item alpha="255" color="#5effa1" label="-75.2071" value="-75.20713916636714"/>
+              <item alpha="255" color="#61ff9e" label="-74.5770" value="-74.57695664759126"/>
+              <item alpha="255" color="#64ff9b" label="-73.9266" value="-73.9266167755211"/>
+              <item alpha="255" color="#67ff98" label="-73.3410" value="-73.3409926166587"/>
+              <item alpha="255" color="#6aff95" label="-72.7108" value="-72.71081009788281"/>
+              <item alpha="255" color="#6dff92" label="-72.0987" value="-72.09866310573852"/>
+              <item alpha="255" color="#70ff8f" label="-71.4441" value="-71.44407958034344"/>
+              <item alpha="255" color="#73ff8c" label="-70.7831" value="-70.78313057496052"/>
+              <item alpha="255" color="#76ff89" label="-70.1625" value="-70.16249627616617"/>
+              <item alpha="255" color="#79ff86" label="-69.4676" value="-69.46759804418275"/>
+              <item alpha="255" color="#7cff83" label="-68.7674" value="-68.76739524554273"/>
+              <item alpha="255" color="#80ff80" label="-68.0629" value="-68.06294879357779"/>
+              <item alpha="255" color="#83ff7c" label="-67.4720" value="-67.47202006805901"/>
+              <item alpha="255" color="#86ff79" label="-66.6668" value="-66.66678684962312"/>
+              <item alpha="255" color="#89ff76" label="-66.0154" value="-66.01538606422173"/>
+              <item alpha="255" color="#8cff73" label="-65.4202" value="-65.42021368537803"/>
+              <item alpha="255" color="#8fff70" label="-64.7731" value="-64.77305655330179"/>
+              <item alpha="255" color="#92ff6d" label="-64.0474" value="-64.04739183471133"/>
+              <item alpha="255" color="#95ff6a" label="-63.2941" value="-63.294143369507765"/>
+              <item alpha="255" color="#98ff67" label="-62.7138" value="-62.71382377730174"/>
+              <item alpha="255" color="#9bff64" label="-62.1632" value="-62.163209758371295"/>
+              <item alpha="255" color="#9eff61" label="-61.5330" value="-61.53302723959541"/>
+              <item alpha="255" color="#a1ff5e" label="-60.9177" value="-60.91769750745743"/>
+              <item alpha="255" color="#a4ff5b" label="-60.3268" value="-60.326768781938426"/>
+              <item alpha="255" color="#a7ff58" label="-59.7083" value="-59.70825630980653"/>
+              <item alpha="255" color="#aaff55" label="-59.0526" value="-59.05261187108022"/>
+              <item alpha="255" color="#adff52" label="-58.4118" value="-58.41182021899158"/>
+              <item alpha="255" color="#b0ff4f" label="-57.8156" value="-57.81558692681642"/>
+              <item alpha="255" color="#b3ff4c" label="-57.1918" value="-57.19176988802815"/>
+              <item alpha="255" color="#b6ff49" label="-56.5287" value="-56.52869905598277"/>
+              <item alpha="255" color="#b9ff46" label="-55.8890" value="-55.88896831722559"/>
+              <item alpha="255" color="#bcff43" label="-55.3214" value="-55.32137968499478"/>
+              <item alpha="255" color="#bfff40" label="-54.6286" value="-54.628603279673825"/>
+              <item alpha="255" color="#c2ff3d" label="-53.9061" value="-53.906121301077064"/>
+              <item alpha="255" color="#c5ff3a" label="-53.2240" value="-53.223954029068864"/>
+              <item alpha="255" color="#c8ff37" label="-52.5747" value="-52.57467507033016"/>
+              <item alpha="255" color="#cbff34" label="-51.9084" value="-51.90842149829109"/>
+              <item alpha="255" color="#ceff31" label="-51.1859" value="-51.18593951969433"/>
+              <item alpha="255" color="#d1ff2e" label="-50.5611" value="-50.561061567574825"/>
+              <item alpha="255" color="#d4ff2b" label="-49.7877" value="-49.7876557490772"/>
+              <item alpha="255" color="#d7ff28" label="-49.0196" value="-49.01955449723596"/>
+              <item alpha="255" color="#daff25" label="-48.2090" value="-48.20901671214369"/>
+              <item alpha="255" color="#ddff22" label="-47.4494" value="-47.44940276695252"/>
+              <item alpha="255" color="#e0ff1f" label="-46.6569" value="-46.65690050849207"/>
+              <item alpha="255" color="#e3ff1c" label="-45.8474" value="-45.84742363673104"/>
+              <item alpha="255" color="#e6ff19" label="-45.0666" value="-45.06659142491435"/>
+              <item alpha="255" color="#e9ff16" label="-44.1277" value="-44.12768312673825"/>
+              <item alpha="255" color="#ecff13" label="-43.2726" value="-43.2725869817325"/>
+              <item alpha="255" color="#efff10" label="-42.4483" value="-42.44825732333379"/>
+              <item alpha="255" color="#f2ff0d" label="-41.4765" value="-41.476460711888194"/>
+              <item alpha="255" color="#f5ff0a" label="-40.4272" value="-40.42721742725962"/>
+              <item alpha="255" color="#f8ff07" label="-39.5032" value="-39.50316191572119"/>
+              <item alpha="255" color="#fbff04" label="-38.5070" value="-38.506964297656396"/>
+              <item alpha="255" color="#feff01" label="-37.3251" value="-37.32510684661884"/>
+              <item alpha="255" color="#fffd00" label="-36.3332" value="-36.33315288187896"/>
+              <item alpha="255" color="#fffa00" label="-35.2521" value="-35.25208219731235"/>
+              <item alpha="255" color="#fff700" label="-34.2209" value="-34.22087443931537"/>
+              <item alpha="255" color="#fff400" label="-33.2512" value="-33.25119965453223"/>
+              <item alpha="255" color="#fff100" label="-31.9866" value="-31.986590963655317"/>
+              <item alpha="255" color="#ffee00" label="-30.8122" value="-30.812159905936824"/>
+              <item alpha="255" color="#ffeb00" label="-29.6091" value="-29.609084188273755"/>
+              <item alpha="255" color="#ffe800" label="-28.5004" value="-28.500429757093798"/>
+              <item alpha="255" color="#ffe500" label="-27.4554" value="-27.45543012579037"/>
+              <item alpha="255" color="#ffe200" label="-26.2831" value="-26.28312089473434"/>
+              <item alpha="255" color="#ffdf00" label="-25.1554" value="-25.15537002359156"/>
+              <item alpha="255" color="#ffdc00" label="-23.9671" value="-23.967147092566393"/>
+              <item alpha="255" color="#ffd900" label="-22.6771" value="-22.67707648173905"/>
+              <item alpha="255" color="#ffd600" label="-21.4146" value="-21.414589617524598"/>
+              <item alpha="255" color="#ffd300" label="-20.2784" value="-20.27835143973175"/>
+              <item alpha="255" color="#ffd000" label="-19.1177" value="-19.117712255319702"/>
+              <item alpha="255" color="#ffcd00" label="-18.0186" value="-18.01860604412127"/>
+              <item alpha="255" color="#ffca00" label="-16.6850" value="-16.685037986711677"/>
+              <item alpha="255" color="#ffc700" label="-15.2846" value="-15.28463238943209"/>
+              <item alpha="255" color="#ffc400" label="-13.9298" value="-13.929846065396987"/>
+              <item alpha="255" color="#ffc100" label="-12.6143" value="-12.614313534618987"/>
+              <item alpha="255" color="#ffbe00" label="-11.2871" value="-11.287110957197001"/>
+              <item alpha="255" color="#ffbb00" label="-9.8528" value="-9.852756133316689"/>
+              <item alpha="255" color="#ffb800" label="-8.4916" value="-8.491604329293978"/>
+              <item alpha="255" color="#ffb500" label="-6.9384" value="-6.9384272123109"/>
+              <item alpha="255" color="#ffb200" label="-5.4722" value="-5.47224498849232"/>
+              <item alpha="255" color="#ffaf00" label="-3.9467" value="-3.94665161812236"/>
+              <item alpha="255" color="#ffac00" label="-2.3723" value="-2.372256234513998"/>
+              <item alpha="255" color="#ffa900" label="-0.9305" value="-0.93047501731462"/>
+              <item alpha="255" color="#ffa600" label="0.8752" value="0.875199472511213"/>
+              <item alpha="255" color="#ffa300" label="2.4581" value="2.45808216276987"/>
+              <item alpha="255" color="#ffa000" label="4.0251" value="4.025051153059394"/>
+              <item alpha="255" color="#ff9d00" label="5.4870" value="5.486989723552824"/>
+              <item alpha="255" color="#ff9a00" label="7.2714" value="7.271445946753374"/>
+              <item alpha="255" color="#ff9700" label="9.0209" value="9.020892030021741"/>
+              <item alpha="255" color="#ff9400" label="10.6632" value="10.663185866831554"/>
+              <item alpha="255" color="#ff9100" label="12.5315" value="12.531454243202461"/>
+              <item alpha="255" color="#ff8e00" label="14.7445" value="14.744519452237"/>
+              <item alpha="255" color="#ff8b00" label="16.7698" value="16.76980300163632"/>
+              <item alpha="255" color="#ff8800" label="18.6848" value="18.684751564583166"/>
+              <item alpha="255" color="#ff8500" label="21.0262" value="21.026187286701543"/>
+              <item alpha="255" color="#ff8200" label="23.6763" value="23.676348788220366"/>
+              <item alpha="255" color="#ff7f00" label="26.0082" value="26.008236290357445"/>
+              <item alpha="255" color="#ff7b00" label="28.6552" value="28.65521505188235"/>
+              <item alpha="255" color="#ff7800" label="30.9447" value="30.94466602076841"/>
+              <item alpha="255" color="#ff7500" label="33.4866" value="33.48661436249745"/>
+              <item alpha="255" color="#ff7200" label="35.8471" value="35.847146524578875"/>
+              <item alpha="255" color="#ff6f00" label="38.3530" value="38.3530238130445"/>
+              <item alpha="255" color="#ff6c00" label="40.8907" value="40.89072850144839"/>
+              <item alpha="255" color="#ff6900" label="43.2555" value="43.25550431685497"/>
+              <item alpha="255" color="#ff6600" label="45.5906" value="45.590574558985736"/>
+              <item alpha="255" color="#ff6300" label="48.0286" value="48.02855339425014"/>
+              <item alpha="255" color="#ff6000" label="50.6999" value="50.699933162394245"/>
+              <item alpha="255" color="#ff5d00" label="53.7755" value="53.77552090975337"/>
+              <item alpha="255" color="#ff5a00" label="56.6623" value="56.66226608414581"/>
+              <item alpha="255" color="#ff5700" label="60.1548" value="60.15479277069517"/>
+              <item alpha="255" color="#ff5400" label="63.5020" value="63.501974330859866"/>
+              <item alpha="255" color="#ff5100" label="67.5589" value="67.55890690964611"/>
+              <item alpha="255" color="#ff4e00" label="71.7983" value="71.7983165814112"/>
+              <item alpha="255" color="#ff4b00" label="76.1841" value="76.18413229289172"/>
+              <item alpha="255" color="#ff4800" label="80.5095" value="80.50947594448985"/>
+              <item alpha="255" color="#ff4500" label="85.4480" value="85.4480275015635"/>
+              <item alpha="255" color="#ff4200" label="90.9563" value="90.95628951753042"/>
+              <item alpha="255" color="#ff3f00" label="97.0576" value="97.05760208567881"/>
+              <item alpha="255" color="#ff3c00" label="103.4464" value="103.4464221666019"/>
+              <item alpha="255" color="#ff3900" label="110.4527" value="110.45269380632567"/>
+              <item alpha="255" color="#ff3600" label="116.9731" value="116.97306714032675"/>
+              <item alpha="255" color="#ff3300" label="125.6354" value="125.635424490167"/>
+              <item alpha="255" color="#ff3000" label="134.1503" value="134.15031488696036"/>
+              <item alpha="255" color="#ff2d00" label="143.1978" value="143.19778377605235"/>
+              <item alpha="255" color="#ff2a00" label="151.7265" value="151.72646604615215"/>
+              <item alpha="255" color="#ff2700" label="161.3118" value="161.3118179941996"/>
+              <item alpha="255" color="#ff2400" label="173.0434" value="173.04339761141114"/>
+              <item alpha="255" color="#ff2100" label="186.0587" value="186.05868235946264"/>
+              <item alpha="255" color="#ff1e00" label="200.0139" value="200.01393631902147"/>
+              <item alpha="255" color="#ff1b00" label="215.8194" value="215.8194231283196"/>
+              <item alpha="255" color="#ff1800" label="234.4194" value="234.41935565218955"/>
+              <item alpha="255" color="#ff1500" label="259.8866" value="259.88658016938666"/>
+              <item alpha="255" color="#ff1200" label="285.3538" value="285.35380468658377"/>
+              <item alpha="255" color="#ff0f00" label="316.0503" value="316.05027101362316"/>
+              <item alpha="255" color="#ff0c00" label="351.3713" value="351.3712585516796"/>
+              <item alpha="255" color="#ff0900" label="396.8176" value="396.81760292340095"/>
+              <item alpha="255" color="#ff0600" label="458.8078" value="458.8078297829861"/>
+              <item alpha="255" color="#ff0300" label="548.8560" value="548.8560315147358"/>
+              <item alpha="255" color="#ff0000" label="1360.6361" value="1360.6361461178692"/>
+              <rampLegendSettings direction="0" maximumLabel="" minimumLabel="" orientation="2" prefix="" suffix="" useContinuousLegend="1">
+                <numericFormat id="basic">
+                  <Option type="Map">
+                    <Option name="decimal_separator" type="invalid"/>
+                    <Option name="decimals" type="int" value="6"/>
+                    <Option name="rounding_type" type="int" value="0"/>
+                    <Option name="show_plus" type="bool" value="false"/>
+                    <Option name="show_thousand_separator" type="bool" value="true"/>
+                    <Option name="show_trailing_zeros" type="bool" value="false"/>
+                    <Option name="thousand_separator" type="invalid"/>
+                  </Option>
+                </numericFormat>
+              </rampLegendSettings>
+            </colorrampshader>
+          </rastershader>
+        </rasterrenderer>
+        <brightnesscontrast brightness="0" contrast="0" gamma="1"/>
+        <huesaturation colorizeBlue="128" colorizeGreen="128" colorizeOn="0" colorizeRed="255" colorizeStrength="100" grayscaleMode="0" invertColors="0" saturation="0"/>
+        <rasterresampler maxOversampling="2"/>
+        <resamplingStage>resamplingFilter</resamplingStage>
+      </pipe>
+      <blendMode>6</blendMode>
+      <legend/>
+    </maplayer>
+  </maplayers>
+</qlr>

@@ -99,6 +99,8 @@ test('standard mode hides drawing and advanced COG controls until enabled', asyn
   const row = aluminium.locator('xpath=ancestor::*[@data-order-key][1]');
   await row.locator('.tbtn[aria-label^="Transparency"]').click();
   await expect(row.locator('.cog-source-copy')).toBeVisible();
+  await expect(row.locator('.cog-qgis-download')).toBeVisible();
+  await expect(row.locator('.cog-arcpro-placeholder')).toBeDisabled();
   const rampLegend = row.locator('.cog-ramp-legend');
   await expect(rampLegend).toBeVisible();
   await expect(rampLegend.locator('.cog-ramp-legend-title')).toContainText('%');
@@ -111,6 +113,42 @@ test('standard mode hides drawing and advanced COG controls until enabled', asyn
   await expect(rampLegend.locator('.cog-ramp-legend-ramp-name')).toBeVisible();
   await expect(row.locator('.cog-ramp-picker-button')).toBeVisible();
   await expect(row.locator('.cog-ramp-mode-select')).toBeVisible();
+});
+
+test('COG download panel offers QGIS export, ArcGIS placeholder, and source copy', async ({ page }) => {
+  await page.getByRole('combobox', { name: 'Theme' }).selectOption({ label: 'Tellus Geochemistry' });
+  const layerCheckbox = page.getByRole('checkbox', { name: /^Aluminium Al %/ });
+  const row = layerCheckbox.locator('xpath=ancestor::*[@data-order-key][1]');
+  await row.locator('.tbtn[aria-label^="Transparency"]').click();
+
+  await expect(row.locator('.cog-download-section')).toBeVisible();
+  await expect(row.locator('.cog-download-section h4')).toHaveText('Download for Desktop GIS');
+  await expect(row.locator('.cog-qgis-download')).toBeVisible();
+  await expect(row.locator('.cog-arcpro-placeholder')).toBeDisabled();
+  await expect(row.locator('.cog-source-copy')).toBeVisible();
+
+  await page.evaluate(() => {
+    const overlay = window.CONFIG.overlays.find(item => item.name === 'Aluminium Al % DL = 0.01');
+    overlay.cogState.bandCount = 1;
+    overlay.cogState.rangeMin = 0;
+    overlay.cogState.rangeMax = 10;
+    overlay.cogState.quantileBounds = [0, 10];
+    overlay.cogState.percentileRange = { min: 0.2, max: 9.8 };
+  });
+  const downloadPromise = page.waitForEvent('download');
+  await row.locator('.cog-qgis-download').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.qlr$/);
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const qlr = Buffer.concat(chunks).toString('utf8');
+  expect(qlr).toContain('<!DOCTYPE qgis-layer-definition>');
+  expect(qlr).toContain('name="Aluminium Al % DL = 0.01"');
+  expect(qlr).toContain('<authid>EPSG:29902</authid>');
+  expect(qlr).toContain('type="singlebandpseudocolor"');
+  expect(qlr).toContain('colorRampType="DISCRETE"');
+  expect(qlr).toContain('label="0.06 (1st)"');
 });
 
 test('add-data search only shows matching layers inside matching groups', async ({ page }) => {

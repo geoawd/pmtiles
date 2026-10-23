@@ -302,7 +302,17 @@
   .cog-ramp-mode-select { width: 100%; min-width: 0; padding: 3px 6px; border: 1px solid #8a949e; border-radius: 4px; background: #fff; }
   .cog-ramp-error { color: #b71c1c; font-size: 11px; }
   .cog-ramp-error:empty { display: none; }
-  .cog-source-copy { justify-self: start; padding: 0; border: 0; background: none; color: #234b6b; text-align: left; text-decoration: underline; cursor: pointer; }
+  .cog-download-section { display: grid; gap: 5px; }
+  .cog-download-divider { border-top: 1px solid var(--line); }
+  .cog-download-section h4 { margin: 2px 0; font-size: 12px; }
+  .cog-download-actions { display: flex; align-items: center; flex-wrap: wrap; }
+  .cog-download-actions button { min-height: 34px; display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 0; border-radius: 3px; background: transparent; color: #234b6b; font-size: 11px; }
+  .cog-download-actions button + button { margin-left: 4px; border-left: 1px solid var(--line); border-radius: 0 3px 3px 0; }
+  .cog-download-actions button:hover:not(:disabled) { background: #e7ecef; }
+  .cog-download-actions button:disabled { color: var(--muted); opacity: .65; }
+  .cog-download-actions svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .cog-download-status { color: var(--muted); font-size: 11px; }
+  .cog-download-status:empty { display: none; }
   .cog-ramp-legend { display: grid; gap: 3px; margin: 3px 0 7px 22px; font-size: 11px; }
   .cog-ramp-legend-title { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; font-weight: 600; }
   body:not(.advanced-mode) .cog-ramp-legend-ramp-name { display: none; }

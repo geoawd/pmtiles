@@ -2,6 +2,7 @@ import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.13.0/dist/maplibre-
 import { COLORCET_RAMPS } from './colorcet-ramps.js';
 import { cogClassColorLut, cogClassRampColors, validateCogClasses } from './cog-classes.js';
 import { cogResamplingUrl } from './cog-resampling.js';
+import { buildQgisLayerDefinition, QGIS_TURBO_COLORS } from './qgis-layer.js';
 import { isJsonThemeShareState, jsonThemeMapView, parseMapViewHash } from './shared-links.js';
 import { buildJsonFeatures, createJsonThemeState, filterJsonRows, hasJsonFilters, jsonGeometryCenter, jsonGeometryIntersectsBounds, loadJsonThemeConfig, loadJsonThemeData } from './json-theme-runtime.js';
 
@@ -3431,6 +3432,60 @@ function cogRampColorAt(colors, fraction) {
   return `#${start.map((value, index) =>
     Math.round(value + (end[index] - value) * blend).toString(16).padStart(2, '0')).join('')}`;
 }
+function cogQgisColorStops(state) {
+  const colors = COG_RAMP_COLORS[state.ramp] || QGIS_TURBO_COLORS;
+  const range = state.mode === 'percentile'
+    ? state.percentileRange
+    : { min: state.rangeMin, max: state.rangeMax };
+  if (!range || !Number.isFinite(range.min) || !Number.isFinite(range.max) || range.min >= range.max) {
+    throw new Error('The raster value range is unavailable for exporting its color style.');
+  }
+
+  if (state.mode === 'classes' && state.classes.length) {
+    const classColors = cogClassRampColors(colors, state.classes);
+    return {
+      minimum: range.min,
+      maximum: range.max,
+      discrete: true,
+      colorStops: state.classes.map((item, index) => ({
+        value: item.max,
+        color: classColors[index],
+        label: item.label || (index === 0
+          ? `≤ ${cogValueLabel(item.max)}`
+          : `> ${cogValueLabel(state.classes[index - 1].max)} to ≤ ${cogValueLabel(item.max)}`)
+      })).concat(state.classes.at(-1).max < range.max
+        ? [{ value: range.max, color: classColors.at(-1), label: `> ${cogValueLabel(state.classes.at(-1).max)}` }]
+        : [])
+    };
+  }
+
+  const rampColors = state.mode === 'quantile' && state.quantileBounds.length > 1
+    ? cogQuantileRampColors(colors, state.quantileBounds)
+    : colors;
+  return {
+    minimum: range.min,
+    maximum: range.max,
+    discrete: false,
+    colorStops: rampColors.map((color, index) => ({
+      value: range.min + (range.max - range.min) * index / (rampColors.length - 1),
+      color,
+      label: cogValueLabel(range.min + (range.max - range.min) * index / (rampColors.length - 1))
+    }))
+  };
+}
+async function prepareCogQgisStyle(w) {
+  const state = w.cogState;
+  if (state.bandCount === 1 && Number.isFinite(state.rangeMin) && state.quantileBounds.length > 1) return true;
+  const metadata = await window.MaplibreCOGProtocol.getCogMetadata(state.url);
+  state.bandCount = metadata.bitsPerSample?.length || 0;
+  if (state.bandCount !== 1) return false;
+  const range = await sampleCogValueRange(state.url, metadata, () => true);
+  state.rangeMin = range.min;
+  state.rangeMax = range.max;
+  state.quantileBounds = cogQuantileBounds(range.values);
+  state.percentileRange = cogPercentileRange(range.values);
+  return true;
+}
 function cogQuantileFraction(value, bounds) {
   let low = 0;
   let high = bounds.length - 1;
@@ -3661,6 +3716,7 @@ function initializeCogRampControls(w, panel, legend) {
   const url = state.url;
   const setup = async () => {
     const metadata = await window.MaplibreCOGProtocol.getCogMetadata(url);
+    state.bandCount = metadata.bitsPerSample?.length || 0;
     if (!isCogOverlayVisible(w)) {
       status.textContent = 'Enable this layer to load its COG controls.';
       return false;
@@ -3969,6 +4025,7 @@ function addRasterLayer(w, beforeId) {
       legendUnits: typeof w.legendunits === 'string' ? w.legendunits : '',
       rangeMin: null,
       rangeMax: null,
+      bandCount: null,
       quantileBounds: [],
       percentileRange: null,
       classes,
@@ -4506,7 +4563,25 @@ function buildOverlayLegend() {
       cb.onchange = () => setOverlayVisibility(cb.checked);
       if (!w.global) ctl.ov[w.id] = { theme: on => setThemeVisibility(layerIds, on), set: setOverlayVisibility, el: d };
       const cogControls = w.cogState
-        ? '<div class="cog-ramp-controls"><div class="cog-ramp-advanced-controls advanced-only"><div class="cog-ramp-status" role="status">Enable this layer to load its COG controls.</div></div><button class="cog-source-copy" type="button">Click to copy source COG URL for GIS</button></div>'
+        ? `<div class="cog-ramp-controls">
+            <div class="cog-ramp-advanced-controls advanced-only"><div class="cog-ramp-status" role="status">Enable this layer to load its COG controls.</div></div>
+            <section class="cog-download-section" aria-label="Download and source">
+              <div class="cog-download-divider"></div>
+              <h4>Download for Desktop GIS</h4>
+              <div class="cog-download-actions">
+                <button class="cog-qgis-download" type="button" aria-label="Download QGIS layer definition" title="Download QGIS layer definition (.qlr)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 14h8M8 17h5"/></svg><span>QGIS</span>
+                </button>
+                <button class="cog-arcpro-placeholder" type="button" aria-label="ArcGIS Pro export coming later" title="ArcGIS Pro export will be added later" disabled>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5M8 14h8M8 17h5"/></svg><span>ArcGIS Pro</span>
+                </button>
+                <button class="cog-source-copy" type="button" aria-label="Copy source URL to clipboard" title="Copy source URL to clipboard">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="7" width="12" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h2"/></svg><span>Copy URL</span>
+                </button>
+              </div>
+              <div class="cog-download-status" role="status" aria-live="polite"></div>
+            </section>
+          </div>`
         : '';
       const t = layerTools(transp, infoFor(w.id, name, w.info), v => setOverlayTransparency(w, v),
         w.hillshade ? hillshadeControlsMarkup() : w.contours ? contourControlsMarkup() : cogControls);
@@ -4518,9 +4593,60 @@ function buildOverlayLegend() {
       d.appendChild(t.panel);
       if (w.cogState) {
         const copySource = t.panel.querySelector('.cog-source-copy');
+        const qgisDownload = t.panel.querySelector('.cog-qgis-download');
+        const downloadStatus = t.panel.querySelector('.cog-download-status');
+        qgisDownload.onclick = async () => {
+          qgisDownload.disabled = true;
+          downloadStatus.textContent = 'Preparing QGIS layer definition…';
+          try {
+            let hasSingleBandStyle = false;
+            let style = null;
+            let styleError = null;
+            try {
+              hasSingleBandStyle = await prepareCogQgisStyle(w);
+              if (hasSingleBandStyle) style = cogQgisColorStops(w.cogState);
+            } catch (error) {
+              styleError = error;
+              hasSingleBandStyle = w.cogState.bandCount !== 0;
+              console.warn(`Could not prepare the ${w.name || w.id} QGIS color style; using grayscale.`, error);
+            }
+            const qgisId = `${w.id.replace(/[^A-Za-z0-9_-]+/g, '_')}_${crypto.randomUUID().replace(/-/g, '_')}`;
+            const qlr = buildQgisLayerDefinition({
+              id: qgisId,
+              name: w.name || w.id,
+              url: w.cogState.url,
+              opacity: w.cogState.opacity,
+              minimum: w.cogState.rangeMin,
+              maximum: w.cogState.rangeMax,
+              crsAuthId: w.qgisCrs || w.projection || 'EPSG:29902',
+              renderer: hasSingleBandStyle ? 'gray' : 'none',
+              ...(style || {})
+            });
+            const blobUrl = URL.createObjectURL(new Blob([qlr], { type: 'application/xml;charset=utf-8' }));
+            const link = document.createElement('a');
+            const filename = (w.name || w.id).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'raster-layer';
+            link.href = blobUrl;
+            link.download = `${filename}.qlr`;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+            downloadStatus.textContent = style
+              ? 'QGIS layer definition downloaded with the current color style and breaks.'
+              : hasSingleBandStyle
+                ? `QGIS layer definition downloaded in single-band gray${styleError ? `; color style unavailable: ${styleError.message}` : ''}.`
+                : 'QGIS layer definition downloaded; this multiband raster will use QGIS default rendering.';
+            toast('QGIS layer definition downloaded');
+          } catch (error) {
+            console.error(`Could not export ${w.name || w.id} as a QGIS layer:`, error);
+            downloadStatus.textContent = `Could not create QGIS layer definition: ${error.message}`;
+            toast(`Could not create QGIS layer definition: ${error.message}`);
+          } finally {
+            qgisDownload.disabled = false;
+          }
+        };
         copySource.onclick = async () => {
           try {
             await navigator.clipboard.writeText(w.cogState.url);
+            downloadStatus.textContent = 'Source URL copied to clipboard.';
             toast('COG source URL copied');
           } catch {
             window.prompt('Copy this source URL', w.cogState.url);
